@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#dceeff">
+<title>UtangTracker / LendPro — Loan Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,700;1,800&family=JetBrains+Mono:wght@400;500;700;800&family=Archivo:ital,wght@0,800;0,900;1,800;1,900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#dceeff; --sidebar:#0f1a0b; --panel:#fff; --panel2:#f4f8f1; --ink:#111a0d; --ink2:#39472f; --muted:#79876c; --line:#dbe7ef;
+  --green:#4fae2a; --green2:#6fc93f; --greendk:#2f7d17; --greenbg:#e9f7e2;
+  --lime:#8bd34a; --yellow:#f2c012; --yellowdk:#b8860a; --yellowbg:#fdf5da;
+  --blue:#2f74d8; --bluebg:#e7f0fd; --red:#e23b46; --redbg:#fdeaec; --teal:#0f9b8e; --tealbg:#e2f5f3;
+  --shadow:0 4px 18px rgba(8,20,6,.10); --shadow2:0 16px 44px rgba(8,20,6,.26); --r:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;padding:0}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;z-index:-1;background:
+  radial-gradient(900px 520px at 92% -8%,rgba(255,255,255,.72),transparent 58%),
+  radial-gradient(700px 500px at -8% 108%,rgba(104,176,232,.20),transparent 55%),
+  linear-gradient(160deg,#eaf6ff,#dceeff 55%,#cfe8fb)}
+.mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,select,textarea{font-family:inherit;font-size:15px}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#c8d4bf;border-radius:9px}
+
+.app{display:grid;grid-template-columns:252px 1fr;min-height:100vh}
+.scrim{display:none}
+.side{position:sticky;top:0;height:100vh;background:linear-gradient(180deg,#12200c,#0c1607);border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;z-index:40}
+.brand{padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,.05)}
+.brand .lg{font-family:'Archivo';font-style:italic;font-weight:900;font-size:22px;color:#fff;line-height:.95;letter-spacing:-.02em}
+.brand .lg .u{color:#fff}.brand .lg .t{color:var(--lime)}
+.brand .sub{display:inline-block;margin-top:7px;background:var(--yellow);color:#1a1400;font-size:9px;font-weight:900;letter-spacing:.1em;padding:3px 9px;border-radius:5px;font-style:italic;transform:skewX(-6deg)}
+.nav{flex:1;overflow-y:auto;padding:8px 12px}
+.nav .cap{color:#5f7350;font-size:10px;font-weight:800;letter-spacing:.13em;padding:11px 12px 5px}
+.nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;color:#aec4a0;font-weight:600;font-size:13.5px;text-decoration:none;transition:.16s;margin-bottom:2px;cursor:pointer}
+.nav a .ico{width:20px;text-align:center;font-size:15px;opacity:.9}
+.nav a:hover{background:rgba(255,255,255,.05);color:#fff}
+.nav a.on{background:linear-gradient(135deg,var(--green2),var(--green));color:#fff;box-shadow:0 6px 16px rgba(79,174,42,.4);font-weight:800}
+.nav a .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;min-width:20px;text-align:center}
+.side .foot{padding:12px 16px;border-top:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px}
+.side .foot .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green2),var(--green));display:grid;place-items:center;font-weight:800;color:#fff;font-size:14px}
+.side .foot .nm{color:#fff;font-size:13px;font-weight:700;line-height:1.1}.side .foot .rl{color:#6a8258;font-size:11px}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:30;background:rgba(12,21,8,.72);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.07);padding:14px 26px;display:flex;align-items:center;gap:14px}
+.topbar .hb{display:none;width:40px;height:40px;border-radius:11px;background:rgba(255,255,255,.07);color:#fff;font-size:20px}
+.topbar .tt{color:#fff;font-weight:800;font-size:19px;letter-spacing:-.01em}
+.topbar .tsub{color:#88997a;font-size:12.5px;font-weight:500}
+.topbar .sp{flex:1}
+.topbar .clock{color:#96a888;font-size:12.5px;font-weight:600;text-align:right;line-height:1.3}.topbar .clock b{color:#fff;display:block;font-size:14px}
+.content{padding:24px 26px 90px;max-width:1360px;width:100%;margin:0 auto}
+
+.grid{display:grid;gap:16px}
+.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
+.kpi{background:#fff;border-radius:var(--r);padding:18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi .kl{color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.kpi .kv{font-family:'JetBrains Mono';font-weight:800;font-size:25px;margin-top:8px;letter-spacing:-.02em}
+.kpi .kf{font-size:11.5px;font-weight:600;margin-top:6px;color:var(--muted)}
+.kpi .kic{position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:18px}
+.kpi.g{border-top:3px solid var(--green)}.kpi.g .kic{background:var(--greenbg);color:var(--green)}
+.kpi.gd{border-top:3px solid var(--yellow)}.kpi.gd .kic{background:var(--yellowbg);color:var(--yellowdk)}
+.kpi.r{border-top:3px solid var(--red)}.kpi.r .kic{background:var(--redbg);color:var(--red)}.kpi.r .kv{color:var(--red)}
+.kpi.gr{border-top:3px solid var(--green);}.kpi.gr .kic{background:var(--greenbg);color:var(--green)}.kpi.gr .kv{color:var(--green)}
+
+.card{background:#fff;border-radius:var(--r);box-shadow:var(--shadow);padding:18px}
+.card .ch{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.card .ch h3{margin:0;font-size:15.5px;font-weight:800;letter-spacing:-.01em}
+.card .ch .ci{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px}
+.card .ch .rt{margin-left:auto;font-size:12px;color:var(--muted);font-weight:600;cursor:pointer}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 17px;border-radius:11px;font-weight:700;font-size:14px;transition:.15s;white-space:nowrap;border:1px solid transparent}
+.btn:active{transform:translateY(1px)}
+.btn.green{background:linear-gradient(135deg,var(--green2),var(--green));color:#fff;box-shadow:0 6px 16px rgba(79,174,42,.3)}
+.btn.green:hover{filter:brightness(1.05)}
+.btn.yellow{background:linear-gradient(135deg,#ffd438,var(--yellow));color:#231a00;box-shadow:0 6px 16px rgba(242,192,18,.32)}
+.btn.dark{background:#182611;color:#fff}
+.btn.ghost{background:#fff;border-color:var(--line);color:var(--ink2)}
+.btn.ghost:hover{background:var(--panel2)}
+.btn.red{background:linear-gradient(135deg,#ef5661,var(--red));color:#fff}
+.btn.sm{padding:7px 12px;font-size:12.5px;border-radius:9px}
+.btn.wide{width:100%}
+.iconbtn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--panel2);color:var(--ink2);border:1px solid var(--line);font-size:15px;transition:.15s}
+.iconbtn:hover{background:#eaf1e6}
+.iconbtn.del:hover{background:var(--redbg);color:var(--red);border-color:#f5c2c8}
+
+.tablewrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--line);background:#fff}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:580px}
+thead th{background:var(--panel2);color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+thead th.r,tbody td.r{text-align:right}
+tbody td{padding:12px 14px;border-bottom:1px solid #eef4ea;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}tbody tr:hover{background:#fafcf8}
+td .nm{font-weight:700}td .sub{font-size:12px;color:var(--muted)}
+.tag{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11.5px;font-weight:800;white-space:nowrap}
+.tag.green{background:var(--greenbg);color:var(--greendk)}.tag.gold{background:var(--yellowbg);color:var(--yellowdk)}
+.tag.blue{background:var(--bluebg);color:var(--blue)}.tag.red{background:var(--redbg);color:var(--red)}
+.tag.gray{background:#eef1ec;color:#5b6a54}.tag.teal{background:var(--tealbg);color:var(--teal)}
+
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:800;color:var(--ink2);margin-bottom:6px;letter-spacing:.02em}
+.field .hint{font-size:11px;color:var(--muted);font-weight:500;margin-top:4px}
+.field input,.field select,.field textarea{width:100%;padding:11px 13px;border:1.5px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);transition:.15s;outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(79,174,42,.14)}
+.field textarea{resize:vertical;min-height:60px}
+.searchbar{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:0 14px;flex:1;min-width:0}
+.searchbar input{border:none;padding:12px 0;flex:1;min-width:0;outline:none;background:transparent}.searchbar .si{color:var(--muted);font-size:16px}
+
+.pagehead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.pagehead .ph-t{flex:1;min-width:170px}
+.pagehead h2{margin:0;color:var(--ink);font-size:22px;font-weight:800;letter-spacing:-.02em}
+.pagehead p{margin:3px 0 0;color:var(--ink2);font-size:13px}
+
+.auth-gate{min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg)}
+.auth-card{width:min(100%,420px);background:#fff;border-radius:20px;box-shadow:var(--shadow2);padding:26px}
+.auth-card h1{font-family:'Archivo';font-style:italic;font-size:26px;margin:0 0 6px}.auth-card p{color:var(--muted);font-size:13px;margin:0 0 22px}
+.auth-error{min-height:18px;color:var(--red);font-size:12px;font-weight:700;margin-top:10px}
+
+.overlay{position:fixed;inset:0;background:rgba(6,14,4,.62);backdrop-filter:blur(3px);z-index:100;display:none;align-items:center;justify-content:center;padding:18px}
+.overlay.on{display:flex}
+.modal{background:#fff;border-radius:20px;box-shadow:var(--shadow2);width:100%;max-width:540px;max-height:92vh;overflow-y:auto;animation:pop .2s ease}
+@keyframes pop{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+.modal.wide{max-width:840px}
+.mh{padding:20px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;position:sticky;top:0;background:#fff;z-index:2}
+.mh h3{margin:0;font-size:18px;font-weight:800;flex:1}.mh .x{width:34px;height:34px;border-radius:9px;background:var(--panel2);display:grid;place-items:center;font-size:20px;color:var(--ink2)}
+.mb{padding:20px 22px}
+.mf{padding:16px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;flex-wrap:wrap}
+
+.toasts{position:fixed;bottom:22px;right:22px;z-index:200;display:flex;flex-direction:column;gap:10px}
+.toast{background:#132009;color:#fff;padding:13px 18px;border-radius:12px;box-shadow:var(--shadow2);font-weight:600;font-size:14px;display:flex;align-items:center;gap:10px;animation:slidein .25s ease;border-left:4px solid var(--green);max-width:340px}
+.toast.err{border-left-color:var(--red)}
+@keyframes slidein{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+
+.empty-state{text-align:center;padding:50px 20px;color:var(--muted)}
+.empty-state .e{font-size:52px;margin-bottom:12px;opacity:.6}.empty-state h4{color:var(--ink);font-size:17px;margin:0 0 6px}.empty-state p{margin:0 0 16px;font-size:13.5px}
+
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:11px;border:1.5px solid var(--line);background:#fff;font-weight:700;font-size:13px;color:var(--ink2);transition:.15s}
+.chip.on{background:#182611;color:#fff;border-color:#182611}
+.chip .ct{background:rgba(255,255,255,.2);border-radius:20px;padding:0 7px;font-size:11px}.chip:not(.on) .ct{background:var(--panel2);color:var(--muted)}
+
+.spec{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f5ec;font-size:14px;gap:10px}
+.spec:last-child{border:none}.spec .sl{color:var(--ink2);font-weight:600}.spec .sv{font-weight:700;text-align:right}
+.progress{height:8px;background:#eef4ea;border-radius:20px;overflow:hidden}.progress i{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,var(--green2),var(--green))}
+
+@media(max-width:960px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}}
+@media(max-width:820px){
+  .app{grid-template-columns:1fr}
+  .side{position:fixed;left:0;top:0;bottom:0;width:270px;transform:translateX(-100%);transition:.25s;box-shadow:var(--shadow2)}
+  .side.open{transform:none}.topbar .hb{display:grid}
+  .content{padding:18px 15px 90px}.topbar{padding:12px 16px}.topbar .tt{font-size:16px}.topbar .clock{display:none}
+  .scrim{position:fixed;inset:0;background:rgba(6,14,4,.5);z-index:35;display:none}.scrim.on{display:block}
+  .g4{grid-template-columns:repeat(2,1fr)}.pagehead h2{font-size:19px}
+}
+@media(max-width:440px){.g4{grid-template-columns:1fr}}
+@media print{body::before{display:none}.side,.topbar,.no-print{display:none!important}.overlay{position:static;background:none;padding:0}.modal{box-shadow:none;max-width:none}body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="auth-gate" id="authGate">
+  <form class="auth-card" id="adminLoginForm">
+    <h1>Admin Login</h1><p>Sign in to manage borrowers, loans, and collections.</p>
+    <div class="field"><label>Username</label><input id="adminUsername" autocomplete="username" required></div>
+    <div class="field"><label>Password</label><input id="adminPassword" type="password" autocomplete="current-password" required></div>
+    <button class="btn green wide" id="adminLoginButton" type="submit">Sign In</button>
+    <div class="auth-error" id="adminLoginError" role="alert"></div>
+  </form>
+</div>
+<div class="app" id="app" hidden>
+  <aside class="side" id="side">
+    <div class="brand"><div class="lg"><span class="u">Utang</span><span class="t">Tracker</span></div><span class="sub">/ LendPro</span></div>
+    <nav class="nav" id="nav">
+      <div class="cap">MAIN</div>
+      <a data-view="dashboard" class="on"><span class="ico">📊</span>Dashboard</a>
+      <a data-view="borrowers"><span class="ico">👥</span>Borrowers</a>
+      <a data-view="loans"><span class="ico">📑</span>Loans</a>
+      <a data-view="schedule"><span class="ico">📅</span>Schedule<span class="badge" id="nbDue" style="display:none">0</span></a>
+      <div class="cap">COLLECTION</div>
+      <a data-view="payments"><span class="ico">💵</span>Payments</a>
+      <a data-view="collection"><span class="ico">✅</span>Collection<span class="badge" id="nbOver" style="display:none">0</span></a>
+      <div class="cap">INSIGHTS</div>
+      <a data-view="reports"><span class="ico">📈</span>Reports</a>
+      <a data-view="settings"><span class="ico">⚙️</span>Settings</a>
+    </nav>
+    <div class="foot"><div class="av" id="uAv">A</div><div><div class="nm" id="uName">Admin</div><div class="rl">Lender</div></div></div>
+  </aside>
+  <div class="scrim" id="scrim" onclick="closeSide()"></div>
+  <div class="main">
+    <div class="topbar">
+      <button class="hb" onclick="openSide()">☰</button>
+      <div><div class="tt" id="topTitle">Dashboard</div><div class="tsub" id="topSub">Overview ng buong loan book</div></div>
+      <div class="sp"></div>
+      <button class="btn green sm no-print" onclick="editLoan()">＋ Add Loan</button>
+      <div class="clock"><span id="clkDate"></span><b id="clkTime"></b></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ============================================================
+   UtangTracker / LendPro — single-file • localStorage
+============================================================ */
+const KEY='utangtracker_v1';
+const PESO=n=>'₱'+(Number(n)||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const PESO0=n=>'₱'+Math.round(Number(n)||0).toLocaleString('en-PH');
+const NUM=n=>(Number(n)||0).toLocaleString('en-PH');
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const todayStr=()=>new Date().toISOString().slice(0,10);
+const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const addMonths=(iso,n)=>{const d=new Date(iso);d.setMonth(d.getMonth()+n);return d.toISOString();};
+const fmtDate=iso=>iso?new Date(iso).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}):'—';
+const fmtDay=iso=>iso?new Date(iso).toLocaleDateString('en-PH',{month:'short',day:'numeric'}):'—';
+const daysBetween=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5);
+
+const LSTAT={ongoing:{lbl:'On Going',cls:'gold',col:'#f2c012'},paid:{lbl:'Paid',cls:'green',col:'#4fae2a'},overdue:{lbl:'Overdue',cls:'red',col:'#e23b46'},cancelled:{lbl:'Cancelled',cls:'gray',col:'#8a978a'}};
+const PSTAT={paid:{lbl:'Paid',cls:'green'},partial:{lbl:'Partial',cls:'gold'},unpaid:{lbl:'Unpaid',cls:'red'}};
+const METHOD={flat:{lbl:'Flat / Add-on'},diminishing:{lbl:'Diminishing Balance'},onetime:{lbl:'One-time (Lump Sum)'}};
+
+let DB=null;
+function save(){localStorage.setItem(KEY,JSON.stringify(DB));}
+function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.loans)return d;}catch(e){}return seed();}
+
+function seed(){
+  const now=new Date();const iso=d=>d.toISOString();
+  const db={company:{name:'JuanLend Financing',owner:'Admin',phone:'0917 555 0100'},
+    settings:{defaultRate:2,defaultTerm:5,defaultMethod:'flat'},counter:{loan:1000},
+    borrowers:[],loans:[],payments:[]};
+  const B=(name,phone,addr)=>{const b={id:uid(),name,phone,address:addr,notes:''};db.borrowers.push(b);return b;};
+  const b1=B('Juan Dela Cruz','0918 111 2222','Brgy. San Jose, Bulacan');
+  const b2=B('Maria Santos','0919 333 4444','Sta. Maria, Bulacan');
+  const b3=B('Robert Reyes','0920 555 6666','Malolos, Bulacan');
+  const b4=B('Ana Benitez','0921 777 8888','San Jose Del Monte');
+  const b5=B('Mark Angeles','0922 999 0000','Marilao, Bulacan');
+  const b6=B('Kim Navarro','0923 121 3141','Meycauayan, Bulacan');
+  function mkLoan(b,principal,rate,term,method,startOff){db.counter.loan++;
+    return {id:uid(),no:'LN-'+db.counter.loan,borrowerId:b.id,borrowerName:b.name,principal,rate,term,method,
+      startDate:iso(new Date(now.getFullYear(),now.getMonth(),now.getDate()-startOff)),status:'ongoing',notes:''};}
+  const l1=mkLoan(b1,10000,2,5,'flat',60);   db.loans.push(l1);
+  const l2=mkLoan(b2,15000,2,6,'flat',200);  db.loans.push(l2);
+  const l3=mkLoan(b3,8000,2.5,4,'flat',40);  db.loans.push(l3);
+  const l4=mkLoan(b4,12000,3,6,'flat',120);  db.loans.push(l4);
+  const l5=mkLoan(b5,20000,2,8,'diminishing',50); db.loans.push(l5);
+  const l6=mkLoan(b6,5000,2,3,'flat',150);   db.loans.push(l6);
+  const pay=(loan,amt,off)=>db.payments.push({id:uid(),loanId:loan.id,borrowerId:loan.borrowerId,borrowerName:loan.borrowerName,date:iso(new Date(now.getFullYear(),now.getMonth(),now.getDate()-off)),amount:amt,method:'Cash',note:''});
+  pay(l1,6000,20);            // ongoing, partial
+  pay(l2,17100,10);           // fully paid (15000+2100)
+  pay(l3,2000,15);            // ongoing
+  // l4 Ana: overdue, no payment
+  pay(l5,10000,20);           // ongoing
+  pay(l6,5500,5);             // paid (5000+ interest ~ 300 -> overpay tolerant; will mark paid)
+  return db;
+}
+
+/* ---------- finance engine ---------- */
+const findBorrower=id=>DB.borrowers.find(b=>b.id===id);
+const findLoan=id=>DB.loans.find(l=>l.id===id);
+const loanPaid=id=>DB.payments.filter(p=>p.loanId===id).reduce((a,p)=>a+p.amount,0);
+function calcLoan(loan){
+  const P=+loan.principal,r=(+loan.rate)/100,term=+loan.term||1;let sched=[];
+  if(loan.method==='onetime'){const interest=P*r*term;sched.push({n:1,due:addMonths(loan.startDate,term),principal:P,interest,totalDue:P+interest});}
+  else if(loan.method==='diminishing'){const pp=P/term;let bal=P;for(let i=1;i<=term;i++){const interest=bal*r;sched.push({n:i,due:addMonths(loan.startDate,i),principal:pp,interest,totalDue:pp+interest});bal-=pp;}}
+  else{const totalInt=P*r*term;const pp=P/term;const ip=totalInt/term;for(let i=1;i<=term;i++)sched.push({n:i,due:addMonths(loan.startDate,i),principal:pp,interest:ip,totalDue:pp+ip});}
+  const totalPayable=sched.reduce((a,s)=>a+s.totalDue,0);
+  const totalInterest=sched.reduce((a,s)=>a+s.interest,0);
+  let pool=loanPaid(loan.id);const totalPaid=pool;
+  sched.forEach(s=>{const pay=Math.min(pool,s.totalDue);s.paid=pay;pool-=pay;s.status=pay>=s.totalDue-0.5?'paid':pay>0?'partial':'unpaid';});
+  const balance=Math.max(0,totalPayable-totalPaid);
+  const now=new Date();let overdueAmt=0,nextDue=null;
+  sched.forEach(s=>{if(s.status!=='paid'){if(new Date(s.due)<now)overdueAmt+=(s.totalDue-s.paid);if(!nextDue)nextDue=s.due;}});
+  let status=balance<=0.5?'paid':overdueAmt>0.5?'overdue':'ongoing';
+  if(loan.status==='cancelled')status='cancelled';
+  return {sched,totalPayable,totalInterest,totalPaid,balance,overdueAmt,status,nextDue};
+}
+function bookTotals(){let tPayable=0,tCollected=0,tOverdue=0,tPrincipal=0,tInterest=0;
+  DB.loans.forEach(l=>{if(l.status==='cancelled')return;const c=calcLoan(l);tPayable+=c.totalPayable;tCollected+=c.totalPaid;tOverdue+=c.overdueAmt;tPrincipal+=(+l.principal);tInterest+=c.totalInterest;});
+  return {tPayable,tCollected,tOutstanding:tPayable-tCollected,tOverdue,tPrincipal,tInterest};}
+
+/* ---------- ui utils ---------- */
+function toast(msg,type=''){const t=el('div','toast '+type,(type==='err'?'⚠️ ':'✅ ')+esc(msg));document.getElementById('toasts').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(30px)';setTimeout(()=>t.remove(),250);},2600);}
+function commit(msg){save();updateBadges();if(msg)toast(msg);}
+function openModal(html,wide){const m=document.getElementById('modal');m.className='modal'+(wide?' wide':'');m.innerHTML=html;document.getElementById('overlay').classList.add('on');}
+function closeModal(){document.getElementById('overlay').classList.remove('on');}
+document.getElementById('overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeModal();});
+function openSide(){document.getElementById('side').classList.add('open');document.getElementById('scrim').classList.add('on');}
+function closeSide(){document.getElementById('side').classList.remove('open');document.getElementById('scrim').classList.remove('on');}
+function updateBadges(){let due=0,over=0;DB.loans.forEach(l=>{if(l.status==='cancelled')return;const c=calcLoan(l);if(c.overdueAmt>0.5)over++;c.sched.forEach(s=>{if(s.status!=='paid'){const dd=daysBetween(new Date(),s.due);if(dd>=0&&dd<=7)due++;}});});
+  set('nbDue',due);set('nbOver',over);function set(id,n){const b=document.getElementById(id);if(!b)return;b.textContent=n;b.style.display=n?'inline-block':'none';}}
+function confirmDo(msg,fn){openModal(`<div class="mh"><h3>⚠️ Kumpirma</h3><button class="x" onclick="closeModal()">×</button></div><div class="mb"><p style="margin:0;font-size:15px;color:var(--ink2);line-height:1.5">${esc(msg)}</p></div><div class="mf"><button class="btn ghost" onclick="closeModal()">Hindi</button><button class="btn red" id="cfmBtn">Oo, ituloy</button></div>`);document.getElementById('cfmBtn').onclick=()=>{closeModal();fn();};}
+function kpi(cls,ic,lbl,val,foot){return `<div class="kpi ${cls}"><div class="kic">${ic}</div><div class="kl">${lbl}</div><div class="kv">${val}</div><div class="kf">${foot}</div></div>`;}
+
+/* ---------- router ---------- */
+const TITLES={dashboard:['Dashboard','Overview ng buong loan book'],borrowers:['Borrowers','Listahan ng lahat ng umutang'],
+  loans:['Loans','Lahat ng loan accounts'],schedule:['Payment Schedule','Due dates at installments'],
+  payments:['Payments','Record ng lahat ng collection'],collection:['Collection','Status ng bayad at overdue'],
+  reports:['Reports & Summary','Aging summary at cashflow'],settings:['Settings','Lender info at backup']};
+let CURRENT='dashboard';
+function go(view){CURRENT=view;document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('on',a.dataset.view===view));
+  const t=TITLES[view]||['',''];document.getElementById('topTitle').textContent=t[0];document.getElementById('topSub').textContent=t[1];
+  document.getElementById('content').innerHTML='';VIEWS[view]();closeSide();window.scrollTo(0,0);}
+document.getElementById('nav').addEventListener('click',e=>{const a=e.target.closest('a[data-view]');if(a)go(a.dataset.view);});
+const C=()=>document.getElementById('content');const VIEWS={};
+
+/* ============================================================ DASHBOARD */
+VIEWS.dashboard=function(){const c=C();const t=bookTotals();
+  c.appendChild(el('div','grid g4',`
+    ${kpi('g','📑','TOTAL LOANS',PESO0(t.tPayable),NUM(DB.loans.filter(l=>l.status!=='cancelled').length)+' active accounts')}
+    ${kpi('r','⏳','TOTAL OUTSTANDING',PESO0(t.tOutstanding),'natitirang balance')}
+    ${kpi('gr','💰','TOTAL COLLECTED',PESO0(t.tCollected),'na-collect na')}
+    ${kpi('r','⚠️','OVERDUE',PESO0(t.tOverdue),'lampas na sa due date')}
+  `));
+  const bl=el('div','card');bl.style.marginTop='16px';
+  bl.innerHTML=`<div class="ch"><div class="ci" style="background:var(--greenbg);color:var(--green)">👥</div><h3>Borrower List</h3><span class="rt" onclick="go('loans')">View All →</span></div>`;
+  const active=DB.loans.filter(l=>l.status!=='cancelled').slice(0,8);
+  if(active.length){let rows='';active.forEach(l=>{const cc=calcLoan(l);rows+=`<tr style="cursor:pointer" onclick="viewLoan('${l.id}')">
+    <td class="nm">${esc(l.borrowerName)}</td><td class="mono r">${PESO0(l.principal)}</td><td class="mono r">${PESO0(cc.totalInterest)}</td>
+    <td class="mono r">${PESO0(cc.totalPayable)}</td><td class="mono r" style="color:var(--green)">${PESO0(cc.totalPaid)}</td>
+    <td class="mono r" style="color:${cc.balance>0?'var(--red)':'var(--muted)'}">${PESO0(cc.balance)}</td>
+    <td class="r"><span class="tag ${LSTAT[cc.status].cls}">${LSTAT[cc.status].lbl}</span></td></tr>`;});
+  bl.appendChild(el('div','tablewrap',`<table><thead><tr><th>Borrower</th><th class="r">Principal</th><th class="r">Interest</th><th class="r">Total Payable</th><th class="r">Paid</th><th class="r">Balance</th><th class="r">Status</th></tr></thead><tbody>${rows}</tbody></table>`));}
+  else bl.appendChild(el('div','empty-state','<div class="e">📑</div><h4>Wala pang loan</h4><p>I-click ang + Add Loan</p>'));
+  c.appendChild(bl);
+  // status donut + collection chart
+  const row=el('div','grid g2');row.style.marginTop='16px';
+  const sc=el('div','card');sc.innerHTML=`<div class="ch"><div class="ci" style="background:var(--yellowbg);color:var(--yellowdk)">🎯</div><h3>Loan Status</h3></div>`;
+  const counts={ongoing:0,paid:0,overdue:0};DB.loans.forEach(l=>{if(l.status==='cancelled')return;counts[calcLoan(l).status]++;});
+  const total=counts.ongoing+counts.paid+counts.overdue;
+  sc.appendChild(donut([[counts.ongoing,LSTAT.ongoing.col,'On Going'],[counts.paid,LSTAT.paid.col,'Paid'],[counts.overdue,LSTAT.overdue.col,'Overdue']],total,'Loans'));
+  row.appendChild(sc);
+  const cc=el('div','card');cc.innerHTML=`<div class="ch"><div class="ci" style="background:var(--greenbg);color:var(--green)">📈</div><h3>Collection Overview</h3></div>`;
+  cc.appendChild(collectionChart());row.appendChild(cc);c.appendChild(row);
+};
+function donut(segs,total,label){const wrap=el('div');wrap.style.cssText='display:flex;align-items:center;gap:20px;flex-wrap:wrap';
+  const R=52,CIR=2*Math.PI*R;let off=0,circles='';const t=total||1;
+  segs.forEach(([v,col])=>{const len=v/t*CIR;circles+=`<circle cx="66" cy="66" r="${R}" fill="none" stroke="${col}" stroke-width="18" stroke-dasharray="${len} ${CIR-len}" stroke-dashoffset="${-off}" transform="rotate(-90 66 66)"/>`;off+=len;});
+  let legend='';segs.forEach(([v,col,lbl])=>{legend+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><span style="width:11px;height:11px;border-radius:3px;background:${col}"></span><span style="flex:1;font-size:13px;font-weight:600;color:var(--ink2)">${lbl}</span><span class="mono" style="font-weight:800">${v}</span></div>`;});
+  wrap.innerHTML=`<svg width="132" height="132" viewBox="0 0 132 132">${circles||`<circle cx="66" cy="66" r="${R}" fill="none" stroke="#eef4ea" stroke-width="18"/>`}<text x="66" y="62" text-anchor="middle" font-size="24" font-weight="800" font-family="JetBrains Mono" fill="#111a0d">${total}</text><text x="66" y="80" text-anchor="middle" font-size="10" fill="#79876c" font-weight="700">${label||''}</text></svg><div style="flex:1;min-width:150px">${legend}</div>`;
+  return wrap;}
+function collectionChart(){const now=new Date();const months=[];for(let m=5;m>=0;m--){const d=new Date(now.getFullYear(),now.getMonth()-m,1);
+  const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  const tot=DB.payments.filter(p=>p.date.slice(0,7)===key).reduce((a,p)=>a+p.amount,0);
+  months.push({lbl:d.toLocaleDateString('en-PH',{month:'short'}),v:tot});}
+  const W=520,H=200,pad=40;const max=Math.max(...months.map(m=>m.v),1000)*1.15;const bw=(W-pad-14)/months.length;
+  let bars='',xl='';months.forEach((m,i)=>{const bh=(m.v/max)*(H-50);const x=pad+i*bw+bw*0.18,y=H-28-bh;
+    bars+=`<rect x="${x}" y="${y}" width="${bw*0.64}" height="${bh}" rx="5" fill="url(#cg)"/><text x="${x+bw*0.32}" y="${y-5}" font-size="8.5" fill="#79876c" text-anchor="middle" font-family="JetBrains Mono" font-weight="700">${m.v?Math.round(m.v/1000)+'K':''}</text>`;
+    xl+=`<text x="${x+bw*0.32}" y="${H-10}" font-size="10" fill="#79876c" text-anchor="middle" font-weight="600">${m.lbl}</text>`;});
+  let grid='';for(let g=0;g<=3;g++){const gy=H-28-(g/3)*(H-50);grid+=`<line x1="${pad}" y1="${gy}" x2="${W-8}" y2="${gy}" stroke="#eef4ea"/><text x="4" y="${gy+3}" font-size="8.5" fill="#9aa78c" font-family="JetBrains Mono">${Math.round(max*g/3/1000)}K</text>`;}
+  const wrap=el('div');wrap.style.overflowX='auto';
+  wrap.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:440px"><defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6fc93f"/><stop offset="1" stop-color="#4fae2a"/></linearGradient></defs>${grid}${bars}${xl}</svg>`;
+  return wrap;}
+
+/* ============================================================ BORROWERS */
+let BOR_SEARCH='';
+VIEWS.borrowers=function(){const c=C();const head=el('div','pagehead');
+  head.innerHTML=`<div class="ph-t"><h2>Borrowers</h2><p>${DB.borrowers.length} borrowers</p></div>`;
+  const sb=el('div','searchbar');sb.style.maxWidth='240px';sb.innerHTML='<span class="si">🔍</span>';
+  const si=el('input');si.placeholder='Hanapin...';si.value=BOR_SEARCH;si.oninput=()=>{BOR_SEARCH=si.value;renderBorrowers();};sb.appendChild(si);head.appendChild(sb);
+  const add=el('button','btn green','＋ Bagong Borrower');add.onclick=()=>editBorrower();head.appendChild(add);c.appendChild(head);
+  const box=el('div');box.id='borBox';c.appendChild(box);renderBorrowers();
+};
+function renderBorrowers(){const box=document.getElementById('borBox');if(!box)return;const q=BOR_SEARCH.toLowerCase();
+  const list=DB.borrowers.filter(b=>!q||b.name.toLowerCase().includes(q)||(b.phone||'').includes(q));
+  if(!list.length){box.innerHTML='<div class="card"><div class="empty-state"><div class="e">👥</div><h4>Wala pang borrower</h4><p>Magdagdag ng borrower</p></div></div>';return;}
+  const grid=el('div','grid g3');
+  list.forEach(b=>{const loans=DB.loans.filter(l=>l.borrowerId===b.id&&l.status!=='cancelled');
+    let bal=0,borrowed=0;loans.forEach(l=>{const cc=calcLoan(l);bal+=cc.balance;borrowed+=(+l.principal);});
+    const card=el('div','card');
+    card.innerHTML=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <div style="width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,var(--green2),var(--green));color:#fff;display:grid;place-items:center;font-weight:800;font-size:19px">${esc(b.name[0])}</div>
+      <div style="flex:1"><div style="font-weight:800;font-size:15px">${esc(b.name)}</div><div style="font-size:12.5px;color:var(--muted)">📞 ${esc(b.phone||'—')}</div></div></div>
+      ${b.address?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">📍 ${esc(b.address)}</div>`:''}
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <div style="flex:1;background:var(--panel2);padding:9px;border-radius:10px;text-align:center"><div class="mono" style="font-weight:800;font-size:13px">${loans.length}</div><div style="font-size:10.5px;color:var(--muted);font-weight:700">Loans</div></div>
+        <div style="flex:1;background:var(--panel2);padding:9px;border-radius:10px;text-align:center"><div class="mono" style="font-weight:800;font-size:13px;color:${bal>0?'var(--red)':'var(--green)'}">${PESO0(bal)}</div><div style="font-size:10.5px;color:var(--muted);font-weight:700">Balance</div></div></div>
+      <div style="display:flex;gap:8px"><button class="btn ghost sm" style="flex:1" onclick="editBorrower('${b.id}')">✏️ Edit</button>
+        <button class="btn green sm" style="flex:1" onclick="editLoan(null,'${b.id}')">＋ Loan</button>
+        <button class="iconbtn del" onclick="deleteBorrower('${b.id}')" title="Delete borrower">🗑️</button></div>`;
+    grid.appendChild(card);});box.appendChild(grid);
+}
+function editBorrower(id){const b=id?findBorrower(id):{name:'',phone:'',address:'',notes:''};
+  openModal(`<div class="mh"><h3>${id?'I-edit ang Borrower':'Bagong Borrower'}</h3><button class="x" onclick="closeModal()">×</button></div>
+  <div class="mb"><div class="field"><label>Pangalan *</label><input id="bName" value="${esc(b.name)}"></div>
+    <div class="field"><label>Phone</label><input id="bPhone" value="${esc(b.phone)}" placeholder="09XX XXX XXXX"></div>
+    <div class="field"><label>Address</label><input id="bAddr" value="${esc(b.address)}"></div>
+    <div class="field"><label>Notes</label><textarea id="bNotes">${esc(b.notes)}</textarea></div></div>
+  <div class="mf"><button class="btn ghost" onclick="closeModal()">Kanselahin</button><button class="btn green" onclick="saveBorrower('${id||''}')">💾 I-save</button></div>`);}
+function saveBorrower(id){const name=document.getElementById('bName').value.trim();if(!name){toast('Ilagay ang pangalan','err');return;}
+  const data={name,phone:document.getElementById('bPhone').value.trim(),address:document.getElementById('bAddr').value.trim(),notes:document.getElementById('bNotes').value.trim()};
+  if(id)Object.assign(findBorrower(id),data);else DB.borrowers.push({id:uid(),...data});commit('Na-save ang borrower');closeModal();renderBorrowers();}
+function deleteBorrower(id){const b=findBorrower(id);if(!b)return;const loanCount=DB.loans.filter(l=>l.borrowerId===id).length;
+  const detail=loanCount?` May ${loanCount} loan record na mananatili sa Loans at Payments.`:'';
+  confirmDo(`Burahin si ${b.name} sa borrower records?${detail}`,()=>{DB.borrowers=DB.borrowers.filter(x=>x.id!==id);commit('Nabura ang borrower');go('borrowers');});}
+
+/* ============================================================ LOANS */
+let LOAN_FILTER='all',LOAN_SEARCH='';
+VIEWS.loans=function(){const c=C();const head=el('div','pagehead');
+  head.innerHTML=`<div class="ph-t"><h2>Loans</h2><p>${DB.loans.length} loan accounts</p></div>`;
+  const sb=el('div','searchbar');sb.style.maxWidth='220px';sb.innerHTML='<span class="si">🔍</span>';
+  const si=el('input');si.placeholder='Borrower, loan no...';si.value=LOAN_SEARCH;si.oninput=()=>{LOAN_SEARCH=si.value;renderLoans();};sb.appendChild(si);head.appendChild(sb);
+  const add=el('button','btn green','＋ Add Loan');add.onclick=()=>editLoan();head.appendChild(add);c.appendChild(head);
+  const filt=el('div','filters');const counts={all:DB.loans.length,ongoing:0,overdue:0,paid:0};
+  DB.loans.forEach(l=>{const s=calcLoan(l).status;if(counts[s]!=null)counts[s]++;});
+  [['all','Lahat'],['ongoing','On Going'],['overdue','Overdue'],['paid','Paid']].forEach(([k,lbl])=>{const chip=el('button','chip'+(LOAN_FILTER===k?' on':''),`${lbl} <span class="ct">${counts[k]||0}</span>`);chip.onclick=()=>{LOAN_FILTER=k;VIEWS.loans();};filt.appendChild(chip);});
+  c.appendChild(filt);const box=el('div');box.id='loanBox';c.appendChild(box);renderLoans();
+};
+function renderLoans(){const box=document.getElementById('loanBox');if(!box)return;const q=LOAN_SEARCH.toLowerCase();
+  let list=DB.loans.map(l=>({l,c:calcLoan(l)})).filter(o=>LOAN_FILTER==='all'||o.c.status===LOAN_FILTER)
+    .filter(o=>!q||o.l.borrowerName.toLowerCase().includes(q)||o.l.no.toLowerCase().includes(q))
+    .sort((a,b)=>new Date(b.l.startDate)-new Date(a.l.startDate));
+  if(!list.length){box.innerHTML='<div class="card"><div class="empty-state"><div class="e">📑</div><h4>Walang loan dito</h4><p>Mag-add ng bagong loan</p></div></div>';return;}
+  let rows='';list.forEach(({l,c})=>{rows+=`<tr style="cursor:pointer" onclick="viewLoan('${l.id}')">
+    <td><div class="nm">${esc(l.borrowerName)}</div><div class="sub mono">${l.no} • ${fmtDay(l.startDate)}</div></td>
+    <td class="mono r">${PESO0(l.principal)}</td><td class="sub r">${l.rate}%/mo × ${l.term}</td>
+    <td class="mono r">${PESO0(c.totalPayable)}</td>
+    <td class="mono r" style="color:${c.balance>0?'var(--red)':'var(--green)'}">${PESO0(c.balance)}</td>
+    <td class="r"><span class="tag ${LSTAT[c.status].cls}">${LSTAT[c.status].lbl}</span></td>
+    <td class="r no-print">${c.balance>0.5&&c.status!=='cancelled'?`<button class="btn green sm" onclick="event.stopPropagation();recordPayment('${l.id}')">💵 Bayad</button>`:'—'}</td></tr>`;});
+  box.innerHTML=`<div class="tablewrap"><table><thead><tr><th>Borrower / Loan</th><th class="r">Principal</th><th class="r">Terms</th><th class="r">Total Payable</th><th class="r">Balance</th><th class="r">Status</th><th class="r no-print">Aksyon</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function editLoan(id,presetBorrower){const l=id?findLoan(id):null;const s=DB.settings;
+  const borOpts=DB.borrowers.map(b=>`<option value="${b.id}" ${(l&&l.borrowerId===b.id)||(presetBorrower===b.id)?'selected':''}>${esc(b.name)}</option>`).join('');
+  if(!DB.borrowers.length){openModal(`<div class="mh"><h3>Kailangan ng Borrower</h3><button class="x" onclick="closeModal()">×</button></div><div class="mb"><p style="color:var(--ink2)">Magdagdag muna ng borrower bago gumawa ng loan.</p></div><div class="mf"><button class="btn ghost" onclick="closeModal()">Sara</button><button class="btn green" onclick="closeModal();editBorrower()">＋ Bagong Borrower</button></div>`);return;}
+  openModal(`<div class="mh"><h3>${id?'I-edit ang Loan':'Bagong Loan'}</h3><button class="x" onclick="closeModal()">×</button></div>
+  <div class="mb">
+    <div class="field"><label>Borrower *</label><select id="lBor">${borOpts}</select></div>
+    <div class="grid g2" style="gap:12px">
+      <div class="field"><label>Principal Amount (₱) *</label><input id="lPrin" type="number" value="${l?l.principal:''}" placeholder="0.00" oninput="loanPreview()"></div>
+      <div class="field"><label>Interest Rate (% per month)</label><input id="lRate" type="number" step="0.01" value="${l?l.rate:s.defaultRate}" oninput="loanPreview()"></div>
+      <div class="field"><label>Term (installments/months)</label><input id="lTerm" type="number" value="${l?l.term:s.defaultTerm}" oninput="loanPreview()"></div>
+      <div class="field"><label>Loan Date</label><input id="lDate" type="date" value="${l?l.startDate.slice(0,10):todayStr()}"></div>
+    </div>
+    <div class="field"><label>Interest Method</label><select id="lMethod" onchange="loanPreview()">${Object.entries(METHOD).map(([k,v])=>`<option value="${k}" ${(l?l.method:s.defaultMethod)===k?'selected':''}>${v.lbl}</option>`).join('')}</select>
+      <div class="hint">Flat = pantay na interest kada buwan • Diminishing = bumababa base sa balance • One-time = isang bayaran sa dulo</div></div>
+    <div id="loanPrev" style="background:var(--greenbg);border-radius:12px;padding:14px;margin-top:4px"></div>
+    <div class="field" style="margin-top:14px"><label>Notes</label><input id="lNotes" value="${esc(l?l.notes:'')}" placeholder="Optional"></div>
+  </div>
+  <div class="mf"><button class="btn ghost" onclick="closeModal()">Kanselahin</button><button class="btn green" onclick="saveLoan('${id||''}')">💾 I-save ang Loan</button></div>`);
+  loanPreview();}
+function loanPreview(){const P=parseFloat(document.getElementById('lPrin').value)||0;const r=parseFloat(document.getElementById('lRate').value)||0;const term=parseInt(document.getElementById('lTerm').value)||1;const method=document.getElementById('lMethod').value;
+  const tmp={principal:P,rate:r,term,method,startDate:new Date().toISOString(),id:'_prev'};
+  let totalInt=0,totalPay=0,perMonth=0;
+  if(method==='onetime'){totalInt=P*(r/100)*term;totalPay=P+totalInt;perMonth=totalPay;}
+  else if(method==='diminishing'){const pp=P/term;let bal=P;for(let i=0;i<term;i++){totalInt+=bal*(r/100);bal-=pp;}totalPay=P+totalInt;perMonth=(P/term)+(P*(r/100));}
+  else{totalInt=P*(r/100)*term;totalPay=P+totalInt;perMonth=totalPay/term;}
+  const box=document.getElementById('loanPrev');if(!box)return;
+  box.innerHTML=`<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="font-weight:700;color:var(--greendk)">💡 Auto-Computed</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><div style="font-size:11px;color:var(--muted);font-weight:700">Total Interest</div><div class="mono" style="font-weight:800;font-size:16px">${PESO0(totalInt)}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);font-weight:700">Total Payable</div><div class="mono" style="font-weight:800;font-size:16px;color:var(--green)">${PESO0(totalPay)}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);font-weight:700">${method==='onetime'?'Bayad sa Dulo':'Unang Installment'}</div><div class="mono" style="font-weight:800;font-size:15px">${PESO0(perMonth)}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);font-weight:700">Term</div><div class="mono" style="font-weight:800;font-size:15px">${term} ${term>1?'installments':'payment'}</div></div>
+    </div>`;}
+function saveLoan(id){const bor=findBorrower(document.getElementById('lBor').value);if(!bor){toast('Pumili ng borrower','err');return;}
+  const P=parseFloat(document.getElementById('lPrin').value)||0;if(P<=0){toast('Ilagay ang principal','err');return;}
+  const data={borrowerId:bor.id,borrowerName:bor.name,principal:P,rate:parseFloat(document.getElementById('lRate').value)||0,
+    term:parseInt(document.getElementById('lTerm').value)||1,method:document.getElementById('lMethod').value,
+    startDate:new Date(document.getElementById('lDate').value+'T00:00').toISOString(),notes:document.getElementById('lNotes').value.trim()};
+  let loan;if(id){loan=findLoan(id);Object.assign(loan,data);}else{DB.counter.loan++;loan={id:uid(),no:'LN-'+DB.counter.loan,status:'ongoing',...data};DB.loans.push(loan);}
+  commit('Na-save ang loan '+loan.no);closeModal();viewLoan(loan.id);}
+
+/* LOAN DETAIL + AMORTIZATION */
+function viewLoan(id){const l=findLoan(id);if(!l)return go('loans');const cc=calcLoan(l);const c=C();c.innerHTML='';
+  document.getElementById('topTitle').textContent=l.no;document.getElementById('topSub').textContent=esc(l.borrowerName);
+  const bar=el('div');bar.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px';bar.className='no-print';
+  const back=el('button','btn ghost sm','← Loans');back.onclick=()=>go('loans');bar.appendChild(back);
+  if(cc.balance>0.5){const pay=el('button','btn green sm','💵 Record Payment');pay.onclick=()=>recordPayment(id);bar.appendChild(pay);
+    const rem=el('button','btn yellow sm','📩 Reminder Text');rem.onclick=()=>reminderText(id);bar.appendChild(rem);}
+  const edit=el('button','btn dark sm','✏️ Edit');edit.onclick=()=>editLoan(id);bar.appendChild(edit);
+  const prn=el('button','btn ghost sm','🖨️ Print');prn.onclick=()=>window.print();bar.appendChild(prn);
+  const sp=el('div');sp.style.flex='1';bar.appendChild(sp);
+  const del=el('button','btn ghost sm','🗑️');del.onclick=()=>confirmDo('Burahin ang loan '+l.no+' at lahat ng bayad nito?',()=>{DB.loans=DB.loans.filter(x=>x.id!==id);DB.payments=DB.payments.filter(p=>p.loanId!==id);commit('Nabura');go('loans');});bar.appendChild(del);
+  c.appendChild(bar);
+  const grid=el('div','grid g2');
+  // details
+  const det=el('div','card');
+  const b=findBorrower(l.borrowerId);
+  det.innerHTML=`<div class="ch"><div class="ci" style="background:var(--greenbg);color:var(--green)">👤</div><h3>Loan Details</h3><span class="tag ${LSTAT[cc.status].cls}" style="margin-left:auto">${LSTAT[cc.status].lbl}</span></div>
+    <div style="font-weight:800;font-size:16px;margin-bottom:2px">${esc(l.borrowerName)}</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">📞 ${esc(b?b.phone:'—')} • ${METHOD[l.method].lbl}</div>
+    <div class="spec"><span class="sl">Principal Amount</span><span class="sv mono">${PESO(l.principal)}</span></div>
+    <div class="spec"><span class="sl">Interest Rate</span><span class="sv">${l.rate}% / month</span></div>
+    <div class="spec"><span class="sl">Total Interest</span><span class="sv mono">${PESO(cc.totalInterest)}</span></div>
+    <div class="spec"><span class="sl">Total Payable</span><span class="sv mono" style="font-size:15px">${PESO(cc.totalPayable)}</span></div>
+    <div class="spec"><span class="sl">Total Paid</span><span class="sv mono" style="color:var(--green)">${PESO(cc.totalPaid)}</span></div>
+    <div class="spec"><span class="sl" style="font-weight:800">Balance</span><span class="sv mono" style="font-size:16px;color:${cc.balance>0?'var(--red)':'var(--green)'}">${PESO(cc.balance)}</span></div>
+    <div class="spec"><span class="sl">Loan Date</span><span class="sv">${fmtDate(l.startDate)}</span></div>
+    <div class="spec"><span class="sl">Next Due</span><span class="sv">${cc.nextDue?fmtDate(cc.nextDue):'—'}</span></div>
+    <div style="margin-top:12px"><div class="progress"><i style="width:${Math.min(100,cc.totalPaid/cc.totalPayable*100)}%"></i></div>
+      <div style="font-size:11.5px;color:var(--muted);text-align:right;margin-top:5px;font-weight:700">${Math.round(cc.totalPaid/cc.totalPayable*100)}% bayad na</div></div>`;
+  grid.appendChild(det);
+  // amortization
+  const am=el('div','card');
+  am.innerHTML=`<div class="ch"><div class="ci" style="background:var(--yellowbg);color:var(--yellowdk)">📅</div><h3>Amortization Schedule</h3></div>`;
+  let rows='';cc.sched.forEach(s=>{rows+=`<tr>
+    <td class="mono">${s.n}</td><td class="sub">${fmtDay(s.due)}</td>
+    <td class="mono r">${PESO0(s.principal)}</td><td class="mono r">${PESO0(s.interest)}</td>
+    <td class="mono r" style="font-weight:700">${PESO0(s.totalDue)}</td>
+    <td class="mono r" style="color:var(--green)">${s.paid?PESO0(s.paid):'—'}</td>
+    <td class="r"><span class="tag ${PSTAT[s.status].cls}">${PSTAT[s.status].lbl}</span></td></tr>`;});
+  am.appendChild(el('div','tablewrap',`<table style="min-width:520px"><thead><tr><th>#</th><th>Due Date</th><th class="r">Principal</th><th class="r">Interest</th><th class="r">Total Due</th><th class="r">Paid</th><th class="r">Status</th></tr></thead><tbody>${rows}</tbody></table>`));
+  grid.appendChild(am);c.appendChild(grid);
+  // payment history
+  const pays=DB.payments.filter(p=>p.loanId===id).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(pays.length){const ph=el('div','card');ph.style.marginTop='16px';
+    ph.innerHTML=`<div class="ch"><div class="ci" style="background:var(--tealbg);color:var(--teal)">💵</div><h3>Payment History</h3></div>`;
+    let r='';pays.forEach(p=>{r+=`<tr><td class="sub">${fmtDate(p.date)}</td><td><span class="tag gray">${esc(p.method)}</span></td><td class="sub">${esc(p.note||'—')}</td><td class="mono r" style="font-weight:700;color:var(--green)">${PESO0(p.amount)}</td>
+      <td class="r no-print"><button class="iconbtn del" onclick="delPayment('${p.id}','${id}')">×</button></td></tr>`;});
+    ph.appendChild(el('div','tablewrap',`<table style="min-width:0"><thead><tr><th>Date</th><th>Method</th><th>Note</th><th class="r">Amount</th><th></th></tr></thead><tbody>${r}</tbody></table>`));
+    c.appendChild(ph);}
+}
+function recordPayment(loanId){const l=findLoan(loanId);const cc=calcLoan(l);
+  openModal(`<div class="mh"><h3>💵 Record Payment</h3><button class="x" onclick="closeModal()">×</button></div>
+  <div class="mb"><div style="background:var(--greenbg);padding:14px;border-radius:12px;text-align:center;margin-bottom:16px">
+    <div style="font-weight:800">${esc(l.borrowerName)} • ${l.no}</div><div style="font-size:12px;color:var(--muted);margin:4px 0">Natitirang Balance</div><div class="mono" style="font-weight:800;font-size:22px;color:var(--red)">${PESO(cc.balance)}</div>
+    ${cc.nextDue?`<div style="font-size:12px;color:var(--muted);margin-top:4px">Next due: ${fmtDate(cc.nextDue)}</div>`:''}</div>
+    <div class="field"><label>Halaga ng Bayad</label><input id="payAmt" type="number" value="${Math.round((cc.sched.find(s=>s.status!=='paid')||{totalDue:cc.balance,paid:0}).totalDue-(cc.sched.find(s=>s.status!=='paid')||{paid:0}).paid)}" autofocus></div>
+    <div class="grid g2" style="gap:12px"><div class="field"><label>Method</label><select id="payMethod"><option>Cash</option><option>GCash</option><option>Bank Transfer</option><option>Check</option></select></div>
+      <div class="field"><label>Petsa</label><input id="payDate" type="date" value="${todayStr()}"></div></div>
+    <div class="field"><label>Note</label><input id="payNote" placeholder="Optional"></div>
+  </div>
+  <div class="mf"><button class="btn ghost" onclick="closeModal()">Kanselahin</button><button class="btn green" onclick="doPayment('${loanId}')">✔ I-record ang Bayad</button></div>`);}
+function doPayment(loanId){const l=findLoan(loanId);const amt=parseFloat(document.getElementById('payAmt').value)||0;if(amt<=0){toast('Ilagay ang halaga','err');return;}
+  DB.payments.push({id:uid(),loanId,borrowerId:l.borrowerId,borrowerName:l.borrowerName,date:new Date(document.getElementById('payDate').value+'T00:00').toISOString(),amount:amt,method:document.getElementById('payMethod').value,note:document.getElementById('payNote').value.trim()});
+  commit('Na-record ang bayad na '+PESO0(amt));closeModal();viewLoan(loanId);}
+function delPayment(pid,loanId){confirmDo('Burahin ang bayad na ito?',()=>{DB.payments=DB.payments.filter(p=>p.id!==pid);commit('Nabura');viewLoan(loanId);});}
+function reminderText(loanId){const l=findLoan(loanId);const cc=calcLoan(l);const b=findBorrower(l.borrowerId);
+  const co=DB.company.name;const due=cc.nextDue?fmtDate(cc.nextDue):'';
+  const msg=`Hi ${l.borrowerName.split(' ')[0]}! 😊 Friendly reminder po mula sa ${co}. May balance kayong ${PESO0(cc.balance)}${due?` na may due date na ${due}`:''}. Sana po mabayaran on time para iwas penalty at ma-maintain ang good record. Maraming salamat po! 🙏`;
+  openModal(`<div class="mh"><h3>📩 Reminder Text</h3><button class="x" onclick="closeModal()">×</button></div>
+  <div class="mb"><div class="field"><label>Ready-to-send SMS/Messenger</label><textarea id="remMsg" style="min-height:130px">${esc(msg)}</textarea></div>
+    ${b&&b.phone?`<div style="font-size:12.5px;color:var(--muted)">📞 ${esc(b.phone)}</div>`:''}</div>
+  <div class="mf"><button class="btn ghost" onclick="closeModal()">Sara</button><button class="btn green" onclick="copyRem()">📋 Copy Text</button></div>`);}
+function copyRem(){const t=document.getElementById('remMsg');t.select();try{document.execCommand('copy');toast('Na-copy ang text!');}catch(e){toast('Piliin at i-copy manually','err');}}
+
+/* ============================================================ SCHEDULE */
+let SCH_FILTER='upcoming';
+VIEWS.schedule=function(){const c=C();const head=el('div','pagehead');
+  head.innerHTML=`<div class="ph-t"><h2>Payment Schedule</h2><p>Lahat ng due installments</p></div>`;c.appendChild(head);
+  const filt=el('div','filters');
+  [['upcoming','Upcoming'],['overdue','Overdue'],['all','Lahat']].forEach(([k,lbl])=>{const chip=el('button','chip'+(SCH_FILTER===k?' on':''),lbl);chip.onclick=()=>{SCH_FILTER=k;VIEWS.schedule();};filt.appendChild(chip);});
+  c.appendChild(filt);
+  const now=new Date();let items=[];
+  DB.loans.forEach(l=>{if(l.status==='cancelled')return;const cc=calcLoan(l);cc.sched.forEach(s=>{if(s.status==='paid')return;
+    const overdue=new Date(s.due)<now;items.push({l,s,overdue,remain:s.totalDue-s.paid});});});
+  if(SCH_FILTER==='upcoming')items=items.filter(i=>!i.overdue);
+  else if(SCH_FILTER==='overdue')items=items.filter(i=>i.overdue);
+  items.sort((a,b)=>new Date(a.s.due)-new Date(b.s.due));
+  if(!items.length){c.appendChild(el('div','card','<div class="empty-state"><div class="e">📅</div><h4>Walang due installments</h4><p>Lahat updated o bayad na!</p></div>'));return;}
+  let rows='';items.forEach(({l,s,overdue,remain})=>{const dd=daysBetween(now,s.due);
+    rows+=`<tr style="cursor:pointer" onclick="viewLoan('${l.id}')">
+    <td><div class="nm">${esc(l.borrowerName)}</div><div class="sub mono">${l.no} • Inst #${s.n}</div></td>
+    <td><div class="mono">${fmtDate(s.due)}</div><div class="sub" style="color:${overdue?'var(--red)':dd<=7?'var(--yellowdk)':'var(--muted)'}">${overdue?Math.abs(dd)+' days late':dd===0?'Due today':'in '+dd+' days'}</div></td>
+    <td class="mono r" style="font-weight:700">${PESO0(remain)}</td>
+    <td class="r"><span class="tag ${overdue?'red':'gold'}">${overdue?'Overdue':'Due'}</span></td>
+    <td class="r no-print"><button class="btn green sm" onclick="event.stopPropagation();recordPayment('${l.id}')">💵</button></td></tr>`;});
+  c.appendChild(el('div','tablewrap',`<table><thead><tr><th>Borrower</th><th>Due Date</th><th class="r">Amount Due</th><th class="r">Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>`));
+};
+
+/* ============================================================ PAYMENTS */
+VIEWS.payments=function(){const c=C();const now=new Date();
+  const monthTot=DB.payments.filter(p=>{const d=new Date(p.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();}).reduce((a,p)=>a+p.amount,0);
+  const head=el('div','pagehead');head.innerHTML=`<div class="ph-t"><h2>Payments</h2><p>This month: ${PESO0(monthTot)} • ${DB.payments.length} records</p></div>`;c.appendChild(head);
+  if(!DB.payments.length){c.appendChild(el('div','card','<div class="empty-state"><div class="e">💵</div><h4>Wala pang payment</h4></div>'));return;}
+  let rows='';DB.payments.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,80).forEach(p=>{const l=findLoan(p.loanId);
+    rows+=`<tr ${l?`style="cursor:pointer" onclick="viewLoan('${p.loanId}')"`:''}><td class="sub mono">${fmtDate(p.date)}</td>
+    <td class="nm">${esc(p.borrowerName||'—')}</td><td class="sub mono">${l?l.no:'—'}</td>
+    <td><span class="tag gray">${esc(p.method)}</span></td>
+    <td class="mono r" style="font-weight:700;color:var(--green)">${PESO0(p.amount)}</td></tr>`;});
+  c.appendChild(el('div','tablewrap',`<table><thead><tr><th>Date</th><th>Borrower</th><th>Loan</th><th>Method</th><th class="r">Amount</th></tr></thead><tbody>${rows}</tbody></table>`));
+};
+
+/* ============================================================ COLLECTION */
+VIEWS.collection=function(){const c=C();const t=bookTotals();
+  c.appendChild(el('div','grid g3',`
+    ${kpi('r','⏳','OUTSTANDING',PESO0(t.tOutstanding),'kabuuang balance')}
+    ${kpi('r','⚠️','OVERDUE',PESO0(t.tOverdue),'lampas na sa due')}
+    ${kpi('gr','💰','COLLECTED',PESO0(t.tCollected),'na-collect na')}
+  `));
+  const head=el('div');head.style.margin='18px 0 14px';head.innerHTML=`<h3 style="color:var(--ink);margin:0;font-size:16px">Accounts na May Balance</h3>`;c.appendChild(head);
+  let list=DB.loans.map(l=>({l,c:calcLoan(l)})).filter(o=>o.c.balance>0.5&&o.l.status!=='cancelled')
+    .sort((a,b)=>{const ao=a.c.overdueAmt>0?0:1,bo=b.c.overdueAmt>0?0:1;if(ao!==bo)return ao-bo;return b.c.overdueAmt-a.c.overdueAmt;});
+  if(!list.length){c.appendChild(el('div','card','<div class="empty-state"><div class="e">🎉</div><h4>Walang outstanding!</h4><p>Lahat bayad na. Ang galing!</p></div>'));return;}
+  let rows='';list.forEach(({l,c:cc})=>{rows+=`<tr>
+    <td style="cursor:pointer" onclick="viewLoan('${l.id}')"><div class="nm">${esc(l.borrowerName)}</div><div class="sub mono">${l.no}</div></td>
+    <td class="mono r">${PESO0(cc.totalPaid)} / ${PESO0(cc.totalPayable)}</td>
+    <td class="mono r" style="color:var(--red);font-weight:700">${PESO0(cc.balance)}</td>
+    <td class="r">${cc.overdueAmt>0.5?`<span class="tag red">Overdue ${PESO0(cc.overdueAmt)}</span>`:`<span class="tag gold">On Going</span>`}</td>
+    <td class="r no-print" style="white-space:nowrap"><button class="btn green sm" onclick="recordPayment('${l.id}')">💵 Bayad</button>
+      <button class="iconbtn" onclick="reminderText('${l.id}')" title="Reminder">📩</button></td></tr>`;});
+  c.appendChild(el('div','tablewrap',`<table><thead><tr><th>Borrower</th><th class="r">Paid / Payable</th><th class="r">Balance</th><th class="r">Status</th><th class="r">Aksyon</th></tr></thead><tbody>${rows}</tbody></table>`));
+};
+
+/* ============================================================ REPORTS */
+VIEWS.reports=function(){const c=C();const t=bookTotals();const now=new Date();
+  c.appendChild(el('div','grid g4',`
+    ${kpi('g','📤','DISBURSED',PESO0(t.tPrincipal),'total principal out')}
+    ${kpi('gr','💰','COLLECTED',PESO0(t.tCollected),'lahat ng bayad')}
+    ${kpi('gd','📈','INTEREST EARNED',PESO0(t.tInterest),'projected kita')}
+    ${kpi('r','⏳','OUTSTANDING',PESO0(t.tOutstanding),'natitira')}
+  `));
+  // aging summary
+  const buckets={current:0,d1_30:0,d31_60:0,d60:0};
+  DB.loans.forEach(l=>{if(l.status==='cancelled')return;const cc=calcLoan(l);cc.sched.forEach(s=>{if(s.status==='paid')return;const remain=s.totalDue-s.paid;const dd=daysBetween(s.due,now);
+    if(dd<=0)buckets.current+=remain;else if(dd<=30)buckets.d1_30+=remain;else if(dd<=60)buckets.d31_60+=remain;else buckets.d60+=remain;});});
+  const row=el('div','grid g2');row.style.marginTop='16px';
+  const ag=el('div','card');ag.innerHTML=`<div class="ch"><div class="ci" style="background:var(--yellowbg);color:var(--yellowdk)">📊</div><h3>Aging Summary</h3></div>`;
+  const agRows=[['Current (hindi pa due)',buckets.current,'green'],['1–30 days overdue',buckets.d1_30,'gold'],['31–60 days overdue',buckets.d31_60,'red'],['60+ days overdue',buckets.d60,'red']];
+  const agMax=Math.max(...agRows.map(r=>r[1]),1);
+  ag.innerHTML+=agRows.map(([lbl,v,cls])=>`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span style="font-weight:600;color:var(--ink2)">${lbl}</span><span class="mono" style="font-weight:800">${PESO0(v)}</span></div><div class="progress"><i style="width:${v/agMax*100}%;background:${cls==='red'?'var(--red)':cls==='gold'?'var(--yellow)':'var(--green)'}"></i></div></div>`).join('');
+  row.appendChild(ag);
+  // top borrowers by balance
+  const tb=el('div','card');tb.innerHTML=`<div class="ch"><div class="ci" style="background:var(--greenbg);color:var(--green)">🏆</div><h3>Top Outstanding Balances</h3></div>`;
+  const byBor={};DB.loans.forEach(l=>{if(l.status==='cancelled')return;const cc=calcLoan(l);byBor[l.borrowerName]=(byBor[l.borrowerName]||0)+cc.balance;});
+  const top=Object.entries(byBor).filter(e=>e[1]>0.5).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if(top.length)tb.innerHTML+=`<div class="tablewrap" style="border:none"><table style="min-width:0"><thead><tr><th>Borrower</th><th class="r">Balance</th></tr></thead><tbody>${top.map(([n,v])=>`<tr><td class="nm">${esc(n)}</td><td class="mono r" style="color:var(--red);font-weight:700">${PESO0(v)}</td></tr>`).join('')}</tbody></table></div>`;
+  else tb.innerHTML+='<div class="empty-state"><div class="e">🎉</div><p>Walang outstanding</p></div>';
+  row.appendChild(tb);c.appendChild(row);
+  const cf=el('div','card');cf.style.marginTop='16px';
+  cf.innerHTML=`<div class="ch"><div class="ci" style="background:var(--greenbg);color:var(--green)">📈</div><h3>Cashflow (Collection) — Last 6 Months</h3><span class="rt no-print" onclick="window.print()">🖨️ Print</span></div>`;
+  cf.appendChild(collectionChart());c.appendChild(cf);
+};
+
+/* ============================================================ SETTINGS */
+VIEWS.settings=function(){const c=C();const co=DB.company;const s=DB.settings;
+  const card=el('div','card');
+  card.innerHTML=`<div class="ch"><div class="ci" style="background:var(--greenbg);color:var(--green)">🏢</div><h3>Lender / Business Info</h3></div>
+    <div class="grid g2" style="gap:12px">
+      <div class="field"><label>Business Name</label><input id="coName" value="${esc(co.name)}"></div>
+      <div class="field"><label>Owner</label><input id="coOwner" value="${esc(co.owner)}"></div>
+      <div class="field"><label>Phone</label><input id="coPhone" value="${esc(co.phone)}"></div>
+    </div><button class="btn green" onclick="saveCompany()">💾 I-save</button>`;
+  c.appendChild(card);
+  const def=el('div','card');def.style.marginTop='16px';
+  def.innerHTML=`<div class="ch"><div class="ci" style="background:var(--yellowbg);color:var(--yellowdk)">%</div><h3>Default Loan Settings</h3></div>
+    <div class="grid g3" style="gap:12px">
+      <div class="field"><label>Default Rate (%/mo)</label><input id="sRate" type="number" step="0.01" value="${s.defaultRate}"></div>
+      <div class="field"><label>Default Term (months)</label><input id="sTerm" type="number" value="${s.defaultTerm}"></div>
+      <div class="field"><label>Default Method</label><select id="sMethod">${Object.entries(METHOD).map(([k,v])=>`<option value="${k}" ${s.defaultMethod===k?'selected':''}>${v.lbl}</option>`).join('')}</select></div>
+    </div><button class="btn green" onclick="saveDefaults()">💾 I-save ang Defaults</button>`;
+  c.appendChild(def);
+  const stats=el('div','card');stats.style.marginTop='16px';
+  stats.innerHTML=`<div class="ch"><div class="ci" style="background:var(--bluebg);color:var(--blue)">📊</div><h3>Data Summary</h3></div>
+    <div class="grid g4" style="gap:12px">${mini('Borrowers',DB.borrowers.length)}${mini('Loans',DB.loans.length)}${mini('Payments',DB.payments.length)}${mini('Storage','~'+Math.round(JSON.stringify(DB).length/1024)+'KB')}</div>`;
+  c.appendChild(stats);
+  const bk=el('div','card');bk.style.marginTop='16px';
+  bk.innerHTML=`<div class="ch"><div class="ci" style="background:var(--tealbg);color:var(--teal)">💾</div><h3>Backup & Restore</h3></div>
+    <p style="color:var(--ink2);font-size:13.5px;margin:0 0 14px">Lahat ng data naka-save sa device na ito (offline, secure). I-backup regular para iwas kalimot at iwas lugi.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn dark" onclick="exportData()">⬇️ Download Backup</button>
+      <button class="btn ghost" onclick="document.getElementById('impFile').click()">⬆️ Restore Backup</button>
+      <input type="file" id="impFile" accept=".json" style="display:none" onchange="importData(this)">
+      <div style="flex:1"></div><button class="btn ghost" onclick="resetAll()" style="color:var(--red);border-color:#f5c2c8">🗑️ Reset LAHAT</button></div>`;
+  c.appendChild(bk);
+};
+function mini(l,v){return `<div style="background:var(--panel2);border-radius:11px;padding:12px;text-align:center"><div class="mono" style="font-weight:800;font-size:20px">${v}</div><div style="font-size:11px;color:var(--muted);font-weight:700">${l}</div></div>`;}
+function saveCompany(){const co=DB.company;co.name=document.getElementById('coName').value.trim()||co.name;co.owner=document.getElementById('coOwner').value.trim();co.phone=document.getElementById('coPhone').value.trim();commit('Na-save ang business info');}
+function saveDefaults(){const s=DB.settings;s.defaultRate=parseFloat(document.getElementById('sRate').value)||0;s.defaultTerm=parseInt(document.getElementById('sTerm').value)||1;s.defaultMethod=document.getElementById('sMethod').value;commit('Na-save ang defaults');}
+function exportData(){const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='UtangTracker-backup-'+todayStr()+'.json';a.click();toast('Na-download ang backup');}
+function importData(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.loans)throw 0;DB=d;save();updateBadges();toast('Na-restore!');go('dashboard');}catch(e){toast('Sirang backup file','err');}};r.readAsText(f);input.value='';}
+function resetAll(){confirmDo('Sigurado ka? Mabubura LAHAT ng data at babalik sa demo. Hindi na mababawi!',()=>{DB=seed();save();updateBadges();toast('Na-reset');go('dashboard');});}
+
+/* ============================================================ CLOCK + INIT */
+function tick(){const n=new Date();document.getElementById('clkDate').textContent=n.toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric'});document.getElementById('clkTime').textContent=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
+  if(!DB||CURRENT==='settings'||document.getElementById('overlay').classList.contains('on')||/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))return;
+  const raw=localStorage.getItem(KEY);if(!raw||raw===JSON.stringify(DB))return;try{const latest=JSON.parse(raw);if(!latest||!latest.loans)return;DB=latest;updateBadges();document.getElementById('content').innerHTML='';VIEWS[CURRENT]();}catch(e){}
+}
+function startApp(){DB=load();document.getElementById('authGate').hidden=true;document.getElementById('app').hidden=false;tick();setInterval(tick,5000);updateBadges();go('dashboard');}
+async function checkAdminSession(){try{const res=await fetch('/.netlify/functions/admin-login',{credentials:'same-origin'});if(res.ok){startApp();return;}}catch(e){}document.getElementById('adminUsername').focus();}
+document.getElementById('adminLoginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=document.getElementById('adminLoginButton');const err=document.getElementById('adminLoginError');btn.disabled=true;btn.textContent='Signing In...';err.textContent='';
+  try{const res=await fetch('/.netlify/functions/admin-login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({username:document.getElementById('adminUsername').value,password:document.getElementById('adminPassword').value})});
+    if(!res.ok){err.textContent=res.status===401?'Invalid username or password.':'Admin login is unavailable.';return;}document.getElementById('adminPassword').value='';startApp();
+  }catch(e){err.textContent='Unable to reach the login service.';}finally{btn.disabled=false;btn.textContent='Sign In';}});
+checkAdminSession();
+window.addEventListener('beforeunload',()=>{if(DB)save();});
+</script>
+</body>
+</html>
