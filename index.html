@@ -228,11 +228,12 @@ let DB=null;
 function save(){localStorage.setItem(KEY,JSON.stringify(DB));}
 function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.loans)return d;}catch(e){}return seed();}
 
+function emptyData(){return {company:{name:'JuanLend Financing',owner:'Admin',phone:'0917 555 0100'},
+  settings:{defaultRate:2,defaultTerm:5,defaultMethod:'flat'},counter:{loan:1000},
+  borrowers:[],loans:[],payments:[]};}
 function seed(){
   const now=new Date();const iso=d=>d.toISOString();
-  const db={company:{name:'JuanLend Financing',owner:'Admin',phone:'0917 555 0100'},
-    settings:{defaultRate:2,defaultTerm:5,defaultMethod:'flat'},counter:{loan:1000},
-    borrowers:[],loans:[],payments:[]};
+  const db=emptyData();
   const B=(name,phone,addr)=>{const b={id:uid(),name,phone,address:addr,notes:''};db.borrowers.push(b);return b;};
   const b1=B('Juan Dela Cruz','0918 111 2222','Brgy. San Jose, Bulacan');
   const b2=B('Maria Santos','0919 333 4444','Sta. Maria, Bulacan');
@@ -394,7 +395,9 @@ function editBorrower(id){const b=id?findBorrower(id):{name:'',phone:'',address:
 function saveBorrower(id){const name=document.getElementById('bName').value.trim();if(!name){toast('Ilagay ang pangalan','err');return;}
   const data={name,phone:document.getElementById('bPhone').value.trim(),address:document.getElementById('bAddr').value.trim(),notes:document.getElementById('bNotes').value.trim()};
   if(id)Object.assign(findBorrower(id),data);else DB.borrowers.push({id:uid(),...data});commit('Na-save ang borrower');closeModal();renderBorrowers();}
-function deleteBorrower(id){const b=findBorrower(id);if(!b)return;const loanCount=DB.loans.filter(l=>l.borrowerId===id).length;
+function deleteBorrower(id){const b=findBorrower(id);if(!b)return;
+  if(DB.loans.some(l=>l.borrowerId===id&&calcLoan(l).balance>0)){toast('Hindi maaaring burahin ang borrower na ito dahil mayroon pa siyang outstanding loan.','err');return;}
+  const loanCount=DB.loans.filter(l=>l.borrowerId===id).length;
   const detail=loanCount?` May ${loanCount} loan record na mananatili sa Loans at Payments.`:'';
   confirmDo(`Burahin si ${b.name} sa borrower records?${detail}`,()=>{DB.borrowers=DB.borrowers.filter(x=>x.id!==id);commit('Nabura ang borrower');go('borrowers');});}
 
@@ -664,7 +667,11 @@ function saveCompany(){const co=DB.company;co.name=document.getElementById('coNa
 function saveDefaults(){const s=DB.settings;s.defaultRate=parseFloat(document.getElementById('sRate').value)||0;s.defaultTerm=parseInt(document.getElementById('sTerm').value)||1;s.defaultMethod=document.getElementById('sMethod').value;commit('Na-save ang defaults');}
 function exportData(){const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='UtangTracker-backup-'+todayStr()+'.json';a.click();toast('Na-download ang backup');}
 function importData(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.loans)throw 0;DB=d;save();updateBadges();toast('Na-restore!');go('dashboard');}catch(e){toast('Sirang backup file','err');}};r.readAsText(f);input.value='';}
-function resetAll(){confirmDo('Sigurado ka? Mabubura LAHAT ng data at babalik sa demo. Hindi na mababawi!',()=>{DB=seed();save();updateBadges();toast('Na-reset');go('dashboard');});}
+function resetAll(){confirmDo('Sigurado ka? Mabubura LAHAT ng data. Hindi na mababawi!',()=>{const cleared=emptyData();
+  try{localStorage.setItem(KEY,JSON.stringify(cleared));const stored=JSON.parse(localStorage.getItem(KEY));
+    if(!stored||!Array.isArray(stored.borrowers)||!Array.isArray(stored.loans)||!Array.isArray(stored.payments)||stored.borrowers.length||stored.loans.length||stored.payments.length)throw new Error('Reset failed');
+    DB=stored;updateBadges();go('dashboard');toast('Na-reset. Nabura na ang lahat ng data.');
+  }catch(e){toast('Hindi na-reset ang data. Subukan muli.','err');}});}
 
 /* ============================================================ CLOCK + INIT */
 function tick(){const n=new Date();document.getElementById('clkDate').textContent=n.toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric'});document.getElementById('clkTime').textContent=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
