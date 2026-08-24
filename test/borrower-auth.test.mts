@@ -40,6 +40,13 @@ test('borrower registration resolves only one exact normalized borrower match', 
   ], input), null)
 })
 
+test('reported lucky borrower identity resolves from centralized record values', () => {
+  assert.equal(resolveMatchingBorrowerId(
+    [{ id: 'existing-borrower', name: 'lucky', phone: '09091234567' }],
+    { registeredName: 'lucky', registeredPhone: '09091234567' },
+  ), 'existing-borrower')
+})
+
 test('password credentials use scrypt and never contain plaintext', async () => {
   const password = 'correct horse battery staple'
   const passwordHash = await hashPassword(password)
