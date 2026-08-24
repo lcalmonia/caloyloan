@@ -3,10 +3,11 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
     "types": ["node", "@netlify/functions"]
   },
-  "include": ["db/**/*.ts", "netlify/functions/**/*.mts", "drizzle.config.ts"]
+  "include": ["db/**/*.ts", "netlify/functions/**/*.mts", "netlify/lib/**/*.mts", "test/**/*.mts", "drizzle.config.ts"]
 }

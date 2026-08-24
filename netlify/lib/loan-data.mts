@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm'
+import { asc, eq, notInArray } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { borrowers, company, loans, payments, settings } from '../../db/schema.js'
 
@@ -211,7 +211,6 @@ export async function replaceAdminDataset(dataset: LoanDataset) {
   await db.transaction(async (transaction) => {
     await transaction.delete(payments)
     await transaction.delete(loans)
-    await transaction.delete(borrowers)
 
     await transaction.insert(company).values({ id: SINGLETON_ID, ...dataset.company }).onConflictDoUpdate({
       target: company.id,
@@ -226,7 +225,17 @@ export async function replaceAdminDataset(dataset: LoanDataset) {
       set: { ...dataset.settings, loanCounter: dataset.counter.loan, updatedAt: new Date() },
     })
 
-    if (dataset.borrowers.length) await transaction.insert(borrowers).values(dataset.borrowers)
+    for (const borrower of dataset.borrowers) {
+      await transaction.insert(borrowers).values(borrower).onConflictDoUpdate({
+        target: borrowers.id,
+        set: { name: borrower.name, phone: borrower.phone, address: borrower.address, notes: borrower.notes, updatedAt: new Date() },
+      })
+    }
+    if (dataset.borrowers.length) {
+      await transaction.delete(borrowers).where(notInArray(borrowers.id, dataset.borrowers.map(({ id }) => id)))
+    } else {
+      await transaction.delete(borrowers)
+    }
     if (dataset.loans.length) await transaction.insert(loans).values(dataset.loans)
     if (dataset.payments.length) await transaction.insert(payments).values(dataset.payments)
   })

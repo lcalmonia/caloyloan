@@ -49,6 +49,10 @@ export function createAdminSessionCookie(password: string) {
   return `${ADMIN_COOKIE_NAME}=${encodeURIComponent(session)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${ADMIN_SESSION_SECONDS}`
 }
 
+export function clearAdminSessionCookie() {
+  return `${ADMIN_COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`
+}
+
 export function requireBorrowerReadScope(request: Request, borrowerId: string) {
   const denial = requireAdminSession(request)
   return denial ? { denial, borrowerId: null } : { denial: null, borrowerId }

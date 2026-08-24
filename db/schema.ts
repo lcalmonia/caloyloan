@@ -1,4 +1,4 @@
-import { doublePrecision, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { doublePrecision, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 const timestamps = () => ({
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -33,6 +33,33 @@ export const borrowers = pgTable('borrowers', {
   notes: text().notNull().default(''),
   ...timestamps(),
 })
+
+export const borrowerAccounts = pgTable('borrower_accounts', {
+  id: text().primaryKey(),
+  borrowerId: text('borrower_id').notNull().references(() => borrowers.id, { onDelete: 'cascade' }),
+  email: text().notNull(),
+  normalizedEmail: text('normalized_email').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  status: text().notNull().default('active'),
+  lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+  ...timestamps(),
+}, (table) => [
+  uniqueIndex('borrower_accounts_borrower_id_unique').on(table.borrowerId),
+  uniqueIndex('borrower_accounts_normalized_email_unique').on(table.normalizedEmail),
+])
+
+export const borrowerSessions = pgTable('borrower_sessions', {
+  id: text().primaryKey(),
+  accountId: text('account_id').notNull().references(() => borrowerAccounts.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('borrower_sessions_token_hash_unique').on(table.tokenHash),
+  index('borrower_sessions_account_id_index').on(table.accountId),
+  index('borrower_sessions_expires_at_index').on(table.expiresAt),
+])
 
 export const loans = pgTable('loans', {
   id: text().primaryKey(),

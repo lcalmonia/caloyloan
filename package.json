@@ -5,7 +5,7 @@
   "scripts": {
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck"
+    "test": "npm run typecheck && node --experimental-strip-types --test test/*.test.mts"
   },
   "keywords": [],
   "author": "",
