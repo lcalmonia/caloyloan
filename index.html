@@ -234,7 +234,7 @@ let DB=null;
 function save(){localStorage.setItem(KEY,JSON.stringify(DB));}
 function normalizeData(d){const s=d.settings||(d.settings={});if(!s.loanCalcVersion){s.defaultRate=(+s.defaultRate||0)*12;s.defaultMethod='reducing';s.defaultFrequency='monthly';s.defaultPenaltyRate=0;s.loanCalcVersion=2;}
   d.loans.forEach(l=>{if(!l.frequency)l.frequency='monthly';if(l.penaltyRate==null)l.penaltyRate=0;if(!l.penaltyRule)l.penaltyRule='overdue_balance_weekly';if(!l.rateBasis)l.rateBasis=LOAN_METHODS.includes(l.method)?'annual':'monthly';});return d;}
-function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.loans)return normalizeData(d);}catch(e){}return seed();}
+function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.loans)return normalizeData(d);}catch(e){}return emptyData();}
 
 function emptyData(){return {company:{name:'JuanLend Financing',owner:'Admin',phone:'0917 555 0100'},
   settings:{defaultRate:12,defaultTerm:12,defaultMethod:'reducing',defaultFrequency:'monthly',defaultPenaltyRate:0,loanCalcVersion:2},counter:{loan:1000},
