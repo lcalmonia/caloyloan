@@ -216,20 +216,28 @@ const todayStr=()=>new Date().toISOString().slice(0,10);
 const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 const addMonths=(iso,n)=>{const d=new Date(iso);d.setMonth(d.getMonth()+n);return d.toISOString();};
+const addCalendarMonths=(iso,n)=>{const d=new Date(iso),day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+n);d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));return d.toISOString();};
+const addDays=(iso,n)=>{const d=new Date(iso);d.setDate(d.getDate()+n);return d.toISOString();};
 const fmtDate=iso=>iso?new Date(iso).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}):'—';
 const fmtDay=iso=>iso?new Date(iso).toLocaleDateString('en-PH',{month:'short',day:'numeric'}):'—';
 const daysBetween=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5);
+const money=n=>Math.round((Number(n)||0)*100)/100;
 
 const LSTAT={ongoing:{lbl:'On Going',cls:'gold',col:'#f2c012'},paid:{lbl:'Paid',cls:'green',col:'#4fae2a'},overdue:{lbl:'Overdue',cls:'red',col:'#e23b46'},cancelled:{lbl:'Cancelled',cls:'gray',col:'#8a978a'}};
 const PSTAT={paid:{lbl:'Paid',cls:'green'},partial:{lbl:'Partial',cls:'gold'},unpaid:{lbl:'Unpaid',cls:'red'}};
-const METHOD={flat:{lbl:'Flat / Add-on'},diminishing:{lbl:'Diminishing Balance'},onetime:{lbl:'One-time (Lump Sum)'}};
+const METHOD={reducing:{lbl:'True Diminishing / Reducing Balance'},simple:{lbl:'Simple Interest'},compound:{lbl:'Monthly Compounded Interest'},
+  flat:{lbl:'Flat / Add-on (Legacy)'},diminishing:{lbl:'Diminishing Balance (Legacy)'},onetime:{lbl:'One-time / Lump Sum (Legacy)'}};
+const LOAN_METHODS=['reducing','simple','compound'];
+const FREQUENCY={weekly:{lbl:'Weekly'},bimonthly:{lbl:'Bi-Monthly (twice/month)'},monthly:{lbl:'Monthly'}};
 
 let DB=null;
 function save(){localStorage.setItem(KEY,JSON.stringify(DB));}
-function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.loans)return d;}catch(e){}return seed();}
+function normalizeData(d){const s=d.settings||(d.settings={});if(!s.loanCalcVersion){s.defaultRate=(+s.defaultRate||0)*12;s.defaultMethod='reducing';s.defaultFrequency='monthly';s.defaultPenaltyRate=0;s.loanCalcVersion=2;}
+  d.loans.forEach(l=>{if(!l.frequency)l.frequency='monthly';if(l.penaltyRate==null)l.penaltyRate=0;if(!l.penaltyRule)l.penaltyRule='overdue_balance_weekly';if(!l.rateBasis)l.rateBasis=LOAN_METHODS.includes(l.method)?'annual':'monthly';});return d;}
+function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.loans)return normalizeData(d);}catch(e){}return seed();}
 
 function emptyData(){return {company:{name:'JuanLend Financing',owner:'Admin',phone:'0917 555 0100'},
-  settings:{defaultRate:2,defaultTerm:5,defaultMethod:'flat'},counter:{loan:1000},
+  settings:{defaultRate:12,defaultTerm:12,defaultMethod:'reducing',defaultFrequency:'monthly',defaultPenaltyRate:0,loanCalcVersion:2},counter:{loan:1000},
   borrowers:[],loans:[],payments:[]};}
 function seed(){
   const now=new Date();const iso=d=>d.toISOString();
@@ -243,7 +251,7 @@ function seed(){
   const b6=B('Kim Navarro','0923 121 3141','Meycauayan, Bulacan');
   function mkLoan(b,principal,rate,term,method,startOff){db.counter.loan++;
     return {id:uid(),no:'LN-'+db.counter.loan,borrowerId:b.id,borrowerName:b.name,principal,rate,term,method,
-      startDate:iso(new Date(now.getFullYear(),now.getMonth(),now.getDate()-startOff)),status:'ongoing',notes:''};}
+      frequency:'monthly',rateBasis:'monthly',penaltyRate:0,penaltyRule:'overdue_balance_weekly',startDate:iso(new Date(now.getFullYear(),now.getMonth(),now.getDate()-startOff)),status:'ongoing',notes:''};}
   const l1=mkLoan(b1,10000,2,5,'flat',60);   db.loans.push(l1);
   const l2=mkLoan(b2,15000,2,6,'flat',200);  db.loans.push(l2);
   const l3=mkLoan(b3,8000,2.5,4,'flat',40);  db.loans.push(l3);
@@ -264,25 +272,46 @@ function seed(){
 const findBorrower=id=>DB.borrowers.find(b=>b.id===id);
 const findLoan=id=>DB.loans.find(l=>l.id===id);
 const loanPaid=id=>DB.payments.filter(p=>p.loanId===id).reduce((a,p)=>a+p.amount,0);
+function periodCount(loan){const term=Math.max(1,+loan.term||1),frequency=loan.frequency||'monthly';
+  if(frequency==='weekly'){const end=new Date(addCalendarMonths(loan.startDate,term));let count=0,due=new Date(loan.startDate);while(true){due.setDate(due.getDate()+7);if(due>end)break;count++;}return Math.max(1,count);}
+  return frequency==='bimonthly'?term*2:term;}
+function periodDue(loan,n){if((loan.frequency||'monthly')==='weekly')return addDays(loan.startDate,n*7);
+  if(loan.frequency==='bimonthly')return n%2?addDays(addCalendarMonths(loan.startDate,(n-1)/2),15):addCalendarMonths(loan.startDate,n/2);
+  return addCalendarMonths(loan.startDate,n);}
+function periodicRate(loan,periods){const annual=(+loan.rate||0)/100,frequency=loan.frequency||'monthly',perYear=frequency==='weekly'?52:frequency==='bimonthly'?24:12;
+  if(loan.method==='compound')return Math.pow(1+annual/12,12/perYear)-1;
+  return annual/perYear;}
+function buildSchedule(loan){const P=money(loan.principal),term=Math.max(1,+loan.term||1),periods=periodCount(loan),sched=[];
+  if(!LOAN_METHODS.includes(loan.method)){
+    const r=(+loan.rate||0)/100;
+    if(loan.method==='onetime'){const interest=money(P*r*term);return [{n:1,due:addMonths(loan.startDate,term),principal:P,interest,totalDue:money(P+interest)}];}
+    if(loan.method==='diminishing'){const pp=P/term;let bal=P;for(let i=1;i<=term;i++){const principal=i===term?bal:money(pp),interest=money(bal*r);sched.push({n:i,due:addMonths(loan.startDate,i),principal,interest,totalDue:money(principal+interest)});bal=money(bal-principal);}return sched;}
+    const totalInt=money(P*r*term),pp=P/term,ip=totalInt/term;for(let i=1,usedP=0,usedI=0;i<=term;i++){const principal=i===term?money(P-usedP):money(pp),interest=i===term?money(totalInt-usedI):money(ip);usedP+=principal;usedI+=interest;sched.push({n:i,due:addMonths(loan.startDate,i),principal,interest,totalDue:money(principal+interest)});}return sched;
+  }
+  if(loan.method==='simple'){const totalInt=money(P*((+loan.rate||0)/100)*(term/12)),pp=P/periods,ip=totalInt/periods;let usedP=0,usedI=0;
+    for(let i=1;i<=periods;i++){const principal=i===periods?money(P-usedP):money(pp),interest=i===periods?money(totalInt-usedI):money(ip);usedP+=principal;usedI+=interest;sched.push({n:i,due:periodDue(loan,i),principal,interest,totalDue:money(principal+interest)});}return sched;}
+  const rate=periodicRate(loan,periods),payment=rate?P*rate/(1-Math.pow(1+rate,-periods)):P/periods;let balance=P;
+  for(let i=1;i<=periods;i++){const interest=money(balance*rate),principal=i===periods?balance:money(Math.min(balance,payment-interest));sched.push({n:i,due:periodDue(loan,i),principal,interest,totalDue:money(principal+interest)});balance=money(balance-principal);}return sched;
+}
 function calcLoan(loan){
-  const P=+loan.principal,r=(+loan.rate)/100,term=+loan.term||1;let sched=[];
-  if(loan.method==='onetime'){const interest=P*r*term;sched.push({n:1,due:addMonths(loan.startDate,term),principal:P,interest,totalDue:P+interest});}
-  else if(loan.method==='diminishing'){const pp=P/term;let bal=P;for(let i=1;i<=term;i++){const interest=bal*r;sched.push({n:i,due:addMonths(loan.startDate,i),principal:pp,interest,totalDue:pp+interest});bal-=pp;}}
-  else{const totalInt=P*r*term;const pp=P/term;const ip=totalInt/term;for(let i=1;i<=term;i++)sched.push({n:i,due:addMonths(loan.startDate,i),principal:pp,interest:ip,totalDue:pp+ip});}
-  const totalPayable=sched.reduce((a,s)=>a+s.totalDue,0);
-  const totalInterest=sched.reduce((a,s)=>a+s.interest,0);
-  let pool=loanPaid(loan.id);const totalPaid=pool;
-  sched.forEach(s=>{const pay=Math.min(pool,s.totalDue);s.paid=pay;pool-=pay;s.status=pay>=s.totalDue-0.5?'paid':pay>0?'partial':'unpaid';});
-  const balance=Math.max(0,totalPayable-totalPaid);
-  const now=new Date();let overdueAmt=0,nextDue=null;
-  sched.forEach(s=>{if(s.status!=='paid'){if(new Date(s.due)<now)overdueAmt+=(s.totalDue-s.paid);if(!nextDue)nextDue=s.due;}});
+  const sched=buildSchedule(loan),payments=DB.payments.filter(p=>p.loanId===loan.id).map(p=>({...p,remaining:+p.amount||0})).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const totalPaid=payments.reduce((a,p)=>a+(+p.amount||0),0),basePayable=money(sched.reduce((a,s)=>a+s.totalDue,0)),totalInterest=money(sched.reduce((a,s)=>a+s.interest,0));
+  const now=new Date(loan.asOfDate||Date.now()),penaltyRate=(+loan.penaltyRate||0)/100;let totalPenalty=0,overdueWeeks=0,weeklyPenalty=0,overdueBalance=0;
+  sched.forEach(s=>{s.allocations=[];for(const p of payments){if(p.remaining<=0)continue;const paid=money(s.allocations.reduce((a,x)=>a+x.amount,0)),amount=money(Math.min(p.remaining,s.totalDue-paid));if(amount>0){s.allocations.push({date:p.date,amount});p.remaining=money(p.remaining-amount);}if(s.allocations.reduce((a,x)=>a+x.amount,0)>=s.totalDue-0.005)break;}
+    s.paid=money(s.allocations.reduce((a,x)=>a+x.amount,0));const lateDays=Math.max(0,daysBetween(s.due,now)),weeks=new Date(s.due)<now?Math.ceil(lateDays/7):0;s.overdueWeeks=weeks;s.overdueBalance=weeks?money(Math.max(0,s.totalDue-s.paid)):0;s.weeklyPenalty=money(s.overdueBalance*penaltyRate);s.totalPenalty=0;
+    for(let week=1;week<=weeks;week++){const assessment=addDays(s.due,1+(week-1)*7),paidByThen=s.allocations.filter(a=>new Date(a.date)<=new Date(assessment)).reduce((a,x)=>a+x.amount,0);s.totalPenalty=money(s.totalPenalty+Math.max(0,s.totalDue-paidByThen)*penaltyRate);}
+    s.penaltyPaid=0;for(const p of payments){if(p.remaining<=0)continue;const amount=money(Math.min(p.remaining,s.totalPenalty-s.penaltyPaid));if(amount>0){s.penaltyPaid=money(s.penaltyPaid+amount);p.remaining=money(p.remaining-amount);}if(s.penaltyPaid>=s.totalPenalty-0.005)break;}
+    s.amountPaid=money(s.paid+s.penaltyPaid);s.dueAmount=s.totalDue;s.totalAmountDue=money(Math.max(0,s.totalDue+s.totalPenalty-s.amountPaid));s.status=s.totalAmountDue<=0.005?'paid':s.amountPaid>0?'partial':'unpaid';
+    totalPenalty=money(totalPenalty+s.totalPenalty);overdueWeeks+=weeks;weeklyPenalty=money(weeklyPenalty+s.weeklyPenalty);overdueBalance=money(overdueBalance+s.overdueBalance);});
+  const penaltyPaid=money(sched.reduce((a,s)=>a+s.penaltyPaid,0)),penaltyBalance=money(Math.max(0,totalPenalty-penaltyPaid)),totalPayable=money(basePayable+totalPenalty),balance=money(Math.max(0,totalPayable-totalPaid));
+  const overdueAmt=money(overdueBalance+penaltyBalance);let nextDue=null;sched.forEach(s=>{if(!nextDue&&(s.status!=='paid'||s.totalPenalty>s.penaltyPaid))nextDue=s.due;});
   let status=balance<=0.5?'paid':overdueAmt>0.5?'overdue':'ongoing';
   if(loan.status==='cancelled')status='cancelled';
-  return {sched,totalPayable,totalInterest,totalPaid,balance,overdueAmt,status,nextDue};
+  return {sched,totalPayable,totalInterest,totalPaid,balance,overdueAmt,overdueBalance,overdueWeeks,weeklyPenalty,totalPenalty,penaltyPaid,penaltyBalance,status,nextDue};
 }
-function bookTotals(){let tPayable=0,tCollected=0,tOverdue=0,tPrincipal=0,tInterest=0;
-  DB.loans.forEach(l=>{if(l.status==='cancelled')return;const c=calcLoan(l);tPayable+=c.totalPayable;tCollected+=c.totalPaid;tOverdue+=c.overdueAmt;tPrincipal+=(+l.principal);tInterest+=c.totalInterest;});
-  return {tPayable,tCollected,tOutstanding:tPayable-tCollected,tOverdue,tPrincipal,tInterest};}
+function bookTotals(){let tPayable=0,tCollected=0,tOutstanding=0,tOverdue=0,tPrincipal=0,tInterest=0;
+  DB.loans.forEach(l=>{if(l.status==='cancelled')return;const c=calcLoan(l);tPayable+=c.totalPayable;tCollected+=c.totalPaid;tOutstanding+=c.balance;tOverdue+=c.overdueAmt;tPrincipal+=(+l.principal);tInterest+=c.totalInterest;});
+  return {tPayable,tCollected,tOutstanding,tOverdue,tPrincipal,tInterest};}
 
 /* ---------- ui utils ---------- */
 function toast(msg,type=''){const t=el('div','toast '+type,(type==='err'?'⚠️ ':'✅ ')+esc(msg));document.getElementById('toasts').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(30px)';setTimeout(()=>t.remove(),250);},2600);}
@@ -420,7 +449,7 @@ function renderLoans(){const box=document.getElementById('loanBox');if(!box)retu
   if(!list.length){box.innerHTML='<div class="card"><div class="empty-state"><div class="e">📑</div><h4>Walang loan dito</h4><p>Mag-add ng bagong loan</p></div></div>';return;}
   let rows='';list.forEach(({l,c})=>{rows+=`<tr style="cursor:pointer" onclick="viewLoan('${l.id}')">
     <td><div class="nm">${esc(l.borrowerName)}</div><div class="sub mono">${l.no} • ${fmtDay(l.startDate)}</div></td>
-    <td class="mono r">${PESO0(l.principal)}</td><td class="sub r">${l.rate}%/mo × ${l.term}</td>
+    <td class="mono r">${PESO0(l.principal)}</td><td class="sub r">${l.rate}%/${l.rateBasis==='monthly'?'mo':'yr'} • ${(FREQUENCY[l.frequency]||FREQUENCY.monthly).lbl}</td>
     <td class="mono r">${PESO0(c.totalPayable)}</td>
     <td class="mono r" style="color:${c.balance>0?'var(--red)':'var(--green)'}">${PESO0(c.balance)}</td>
     <td class="r"><span class="tag ${LSTAT[c.status].cls}">${LSTAT[c.status].lbl}</span></td>
@@ -429,43 +458,44 @@ function renderLoans(){const box=document.getElementById('loanBox');if(!box)retu
 }
 function editLoan(id,presetBorrower){const l=id?findLoan(id):null;const s=DB.settings;
   const borOpts=DB.borrowers.map(b=>`<option value="${b.id}" ${(l&&l.borrowerId===b.id)||(presetBorrower===b.id)?'selected':''}>${esc(b.name)}</option>`).join('');
+  const selectedMethod=l?l.method:s.defaultMethod,methodKeys=LOAN_METHODS.includes(selectedMethod)?LOAN_METHODS:[selectedMethod,...LOAN_METHODS];
   if(!DB.borrowers.length){openModal(`<div class="mh"><h3>Kailangan ng Borrower</h3><button class="x" onclick="closeModal()">×</button></div><div class="mb"><p style="color:var(--ink2)">Magdagdag muna ng borrower bago gumawa ng loan.</p></div><div class="mf"><button class="btn ghost" onclick="closeModal()">Sara</button><button class="btn green" onclick="closeModal();editBorrower()">＋ Bagong Borrower</button></div>`);return;}
   openModal(`<div class="mh"><h3>${id?'I-edit ang Loan':'Bagong Loan'}</h3><button class="x" onclick="closeModal()">×</button></div>
   <div class="mb">
     <div class="field"><label>Borrower *</label><select id="lBor">${borOpts}</select></div>
     <div class="grid g2" style="gap:12px">
       <div class="field"><label>Principal Amount (₱) *</label><input id="lPrin" type="number" value="${l?l.principal:''}" placeholder="0.00" oninput="loanPreview()"></div>
-      <div class="field"><label>Interest Rate (% per month)</label><input id="lRate" type="number" step="0.01" value="${l?l.rate:s.defaultRate}" oninput="loanPreview()"></div>
-      <div class="field"><label>Term (installments/months)</label><input id="lTerm" type="number" value="${l?l.term:s.defaultTerm}" oninput="loanPreview()"></div>
-      <div class="field"><label>Loan Date</label><input id="lDate" type="date" value="${l?l.startDate.slice(0,10):todayStr()}"></div>
+      <div class="field"><label>Interest Rate (${l&&l.rateBasis==='monthly'?'% per month — legacy':'% per year'})</label><input id="lRate" type="number" step="0.01" value="${l?l.rate:s.defaultRate}" oninput="loanPreview()"></div>
+      <div class="field"><label>Term (months)</label><input id="lTerm" type="number" value="${l?l.term:s.defaultTerm}" oninput="loanPreview()"></div>
+      <div class="field"><label>Loan Date</label><input id="lDate" type="date" value="${l?l.startDate.slice(0,10):todayStr()}" onchange="loanPreview()"></div>
     </div>
-    <div class="field"><label>Interest Method</label><select id="lMethod" onchange="loanPreview()">${Object.entries(METHOD).map(([k,v])=>`<option value="${k}" ${(l?l.method:s.defaultMethod)===k?'selected':''}>${v.lbl}</option>`).join('')}</select>
-      <div class="hint">Flat = pantay na interest kada buwan • Diminishing = bumababa base sa balance • One-time = isang bayaran sa dulo</div></div>
+    <div class="grid g2" style="gap:12px">
+      <div class="field"><label>Interest Method</label><select id="lMethod" onchange="loanPreview()">${methodKeys.map(k=>`<option value="${k}" ${selectedMethod===k?'selected':''}>${METHOD[k].lbl}</option>`).join('')}</select></div>
+      <div class="field"><label>Payment Frequency</label><select id="lFrequency" onchange="loanPreview()">${Object.entries(FREQUENCY).map(([k,v])=>`<option value="${k}" ${(l?l.frequency:s.defaultFrequency)===k?'selected':''}>${v.lbl}</option>`).join('')}</select></div>
+    </div>
+    <div class="hint">The selected method, frequency, rate, term, and weekly penalty rule are saved with this loan.</div>
     <div id="loanPrev" style="background:var(--greenbg);border-radius:12px;padding:14px;margin-top:4px"></div>
     <div class="field" style="margin-top:14px"><label>Notes</label><input id="lNotes" value="${esc(l?l.notes:'')}" placeholder="Optional"></div>
   </div>
   <div class="mf"><button class="btn ghost" onclick="closeModal()">Kanselahin</button><button class="btn green" onclick="saveLoan('${id||''}')">💾 I-save ang Loan</button></div>`);
   loanPreview();}
-function loanPreview(){const P=parseFloat(document.getElementById('lPrin').value)||0;const r=parseFloat(document.getElementById('lRate').value)||0;const term=parseInt(document.getElementById('lTerm').value)||1;const method=document.getElementById('lMethod').value;
-  const tmp={principal:P,rate:r,term,method,startDate:new Date().toISOString(),id:'_prev'};
-  let totalInt=0,totalPay=0,perMonth=0;
-  if(method==='onetime'){totalInt=P*(r/100)*term;totalPay=P+totalInt;perMonth=totalPay;}
-  else if(method==='diminishing'){const pp=P/term;let bal=P;for(let i=0;i<term;i++){totalInt+=bal*(r/100);bal-=pp;}totalPay=P+totalInt;perMonth=(P/term)+(P*(r/100));}
-  else{totalInt=P*(r/100)*term;totalPay=P+totalInt;perMonth=totalPay/term;}
+function loanPreview(){const P=parseFloat(document.getElementById('lPrin').value)||0,r=parseFloat(document.getElementById('lRate').value)||0,term=parseInt(document.getElementById('lTerm').value)||1,method=document.getElementById('lMethod').value,frequency=document.getElementById('lFrequency').value;
+  const tmp={principal:P,rate:r,term,method,frequency,rateBasis:LOAN_METHODS.includes(method)?'annual':'monthly',penaltyRate:0,startDate:new Date(document.getElementById('lDate').value+'T00:00').toISOString(),id:'_prev'};
+  const preview=calcLoan(tmp),first=preview.sched[0]||{totalDue:0};
   const box=document.getElementById('loanPrev');if(!box)return;
   box.innerHTML=`<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="font-weight:700;color:var(--greendk)">💡 Auto-Computed</span></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div><div style="font-size:11px;color:var(--muted);font-weight:700">Total Interest</div><div class="mono" style="font-weight:800;font-size:16px">${PESO0(totalInt)}</div></div>
-      <div><div style="font-size:11px;color:var(--muted);font-weight:700">Total Payable</div><div class="mono" style="font-weight:800;font-size:16px;color:var(--green)">${PESO0(totalPay)}</div></div>
-      <div><div style="font-size:11px;color:var(--muted);font-weight:700">${method==='onetime'?'Bayad sa Dulo':'Unang Installment'}</div><div class="mono" style="font-weight:800;font-size:15px">${PESO0(perMonth)}</div></div>
-      <div><div style="font-size:11px;color:var(--muted);font-weight:700">Term</div><div class="mono" style="font-weight:800;font-size:15px">${term} ${term>1?'installments':'payment'}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);font-weight:700">Total Interest</div><div class="mono" style="font-weight:800;font-size:16px">${PESO0(preview.totalInterest)}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);font-weight:700">Total Payable</div><div class="mono" style="font-weight:800;font-size:16px;color:var(--green)">${PESO0(preview.totalPayable)}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);font-weight:700">First Installment</div><div class="mono" style="font-weight:800;font-size:15px">${PESO0(first.totalDue)}</div></div>
+      <div><div style="font-size:11px;color:var(--muted);font-weight:700">Schedule</div><div class="mono" style="font-weight:800;font-size:15px">${preview.sched.length} payments</div></div>
     </div>`;}
 function saveLoan(id){const bor=findBorrower(document.getElementById('lBor').value);if(!bor){toast('Pumili ng borrower','err');return;}
   const P=parseFloat(document.getElementById('lPrin').value)||0;if(P<=0){toast('Ilagay ang principal','err');return;}
   const data={borrowerId:bor.id,borrowerName:bor.name,principal:P,rate:parseFloat(document.getElementById('lRate').value)||0,
-    term:parseInt(document.getElementById('lTerm').value)||1,method:document.getElementById('lMethod').value,
+    term:parseInt(document.getElementById('lTerm').value)||1,method:document.getElementById('lMethod').value,frequency:document.getElementById('lFrequency').value,
     startDate:new Date(document.getElementById('lDate').value+'T00:00').toISOString(),notes:document.getElementById('lNotes').value.trim()};
-  let loan;if(id){loan=findLoan(id);Object.assign(loan,data);}else{DB.counter.loan++;loan={id:uid(),no:'LN-'+DB.counter.loan,status:'ongoing',...data};DB.loans.push(loan);}
+  data.rateBasis=LOAN_METHODS.includes(data.method)?'annual':'monthly';let loan;if(id){loan=findLoan(id);Object.assign(loan,data);}else{DB.counter.loan++;loan={id:uid(),no:'LN-'+DB.counter.loan,status:'ongoing',penaltyRate:+DB.settings.defaultPenaltyRate||0,penaltyRule:'overdue_balance_weekly',...data};DB.loans.push(loan);}
   commit('Na-save ang loan '+loan.no);closeModal();viewLoan(loan.id);}
 
 /* LOAN DETAIL + AMORTIZATION */
@@ -486,10 +516,16 @@ function viewLoan(id){const l=findLoan(id);if(!l)return go('loans');const cc=cal
   const b=findBorrower(l.borrowerId);
   det.innerHTML=`<div class="ch"><div class="ci" style="background:var(--greenbg);color:var(--green)">👤</div><h3>Loan Details</h3><span class="tag ${LSTAT[cc.status].cls}" style="margin-left:auto">${LSTAT[cc.status].lbl}</span></div>
     <div style="font-weight:800;font-size:16px;margin-bottom:2px">${esc(l.borrowerName)}</div>
-    <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">📞 ${esc(b?b.phone:'—')} • ${METHOD[l.method].lbl}</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">📞 ${esc(b?b.phone:'—')} • ${(METHOD[l.method]||{lbl:l.method}).lbl}</div>
     <div class="spec"><span class="sl">Principal Amount</span><span class="sv mono">${PESO(l.principal)}</span></div>
-    <div class="spec"><span class="sl">Interest Rate</span><span class="sv">${l.rate}% / month</span></div>
+    <div class="spec"><span class="sl">Interest Rate</span><span class="sv">${l.rate}% / ${l.rateBasis==='monthly'?'month':'year'}</span></div>
+    <div class="spec"><span class="sl">Payment Frequency</span><span class="sv">${(FREQUENCY[l.frequency]||FREQUENCY.monthly).lbl}</span></div>
+    <div class="spec"><span class="sl">Weekly Penalty Rate</span><span class="sv">${+l.penaltyRate||0}% of overdue balance</span></div>
     <div class="spec"><span class="sl">Total Interest</span><span class="sv mono">${PESO(cc.totalInterest)}</span></div>
+    <div class="spec"><span class="sl">Overdue Balance</span><span class="sv mono">${PESO(cc.overdueBalance)}</span></div>
+    <div class="spec"><span class="sl">Overdue Weeks</span><span class="sv mono">${cc.overdueWeeks}</span></div>
+    <div class="spec"><span class="sl">Current Weekly Penalty</span><span class="sv mono">${PESO(cc.weeklyPenalty)}</span></div>
+    <div class="spec"><span class="sl">Total Penalty</span><span class="sv mono">${PESO(cc.totalPenalty)}</span></div>
     <div class="spec"><span class="sl">Total Payable</span><span class="sv mono" style="font-size:15px">${PESO(cc.totalPayable)}</span></div>
     <div class="spec"><span class="sl">Total Paid</span><span class="sv mono" style="color:var(--green)">${PESO(cc.totalPaid)}</span></div>
     <div class="spec"><span class="sl" style="font-weight:800">Balance</span><span class="sv mono" style="font-size:16px;color:${cc.balance>0?'var(--red)':'var(--green)'}">${PESO(cc.balance)}</span></div>
@@ -505,9 +541,11 @@ function viewLoan(id){const l=findLoan(id);if(!l)return go('loans');const cc=cal
     <td class="mono">${s.n}</td><td class="sub">${fmtDay(s.due)}</td>
     <td class="mono r">${PESO0(s.principal)}</td><td class="mono r">${PESO0(s.interest)}</td>
     <td class="mono r" style="font-weight:700">${PESO0(s.totalDue)}</td>
-    <td class="mono r" style="color:var(--green)">${s.paid?PESO0(s.paid):'—'}</td>
+    <td class="mono r" style="color:var(--green)">${s.amountPaid?PESO0(s.amountPaid):'—'}</td>
+    <td class="mono r" style="color:${s.totalPenalty?'var(--red)':'var(--muted)'}">${s.totalPenalty?`${PESO0(s.totalPenalty)}<div class="sub">${s.overdueWeeks} wk</div>`:'—'}</td>
+    <td class="mono r" style="font-weight:700;color:${s.totalAmountDue?'var(--red)':'var(--green)'}">${PESO0(s.totalAmountDue)}</td>
     <td class="r"><span class="tag ${PSTAT[s.status].cls}">${PSTAT[s.status].lbl}</span></td></tr>`;});
-  am.appendChild(el('div','tablewrap',`<table style="min-width:520px"><thead><tr><th>#</th><th>Due Date</th><th class="r">Principal</th><th class="r">Interest</th><th class="r">Total Due</th><th class="r">Paid</th><th class="r">Status</th></tr></thead><tbody>${rows}</tbody></table>`));
+  am.appendChild(el('div','tablewrap',`<table style="min-width:760px"><thead><tr><th>#</th><th>Due Date</th><th class="r">Principal</th><th class="r">Interest</th><th class="r">Due Amount</th><th class="r">Amount Paid</th><th class="r">Penalty</th><th class="r">Total Amount Due</th><th class="r">Status</th></tr></thead><tbody>${rows}</tbody></table>`));
   grid.appendChild(am);c.appendChild(grid);
   // payment history
   const pays=DB.payments.filter(p=>p.loanId===id).sort((a,b)=>new Date(b.date)-new Date(a.date));
@@ -523,7 +561,7 @@ function recordPayment(loanId){const l=findLoan(loanId);const cc=calcLoan(l);
   <div class="mb"><div style="background:var(--greenbg);padding:14px;border-radius:12px;text-align:center;margin-bottom:16px">
     <div style="font-weight:800">${esc(l.borrowerName)} • ${l.no}</div><div style="font-size:12px;color:var(--muted);margin:4px 0">Natitirang Balance</div><div class="mono" style="font-weight:800;font-size:22px;color:var(--red)">${PESO(cc.balance)}</div>
     ${cc.nextDue?`<div style="font-size:12px;color:var(--muted);margin-top:4px">Next due: ${fmtDate(cc.nextDue)}</div>`:''}</div>
-    <div class="field"><label>Halaga ng Bayad</label><input id="payAmt" type="number" value="${Math.round((cc.sched.find(s=>s.status!=='paid')||{totalDue:cc.balance,paid:0}).totalDue-(cc.sched.find(s=>s.status!=='paid')||{paid:0}).paid)}" autofocus></div>
+    <div class="field"><label>Halaga ng Bayad</label><input id="payAmt" type="number" value="${Math.round((cc.sched.find(s=>s.totalAmountDue>0.005)||{totalAmountDue:cc.balance}).totalAmountDue)}" autofocus></div>
     <div class="grid g2" style="gap:12px"><div class="field"><label>Method</label><select id="payMethod"><option>Cash</option><option>GCash</option><option>Bank Transfer</option><option>Check</option></select></div>
       <div class="field"><label>Petsa</label><input id="payDate" type="date" value="${todayStr()}"></div></div>
     <div class="field"><label>Note</label><input id="payNote" placeholder="Optional"></div>
@@ -551,7 +589,7 @@ VIEWS.schedule=function(){const c=C();const head=el('div','pagehead');
   c.appendChild(filt);
   const now=new Date();let items=[];
   DB.loans.forEach(l=>{if(l.status==='cancelled')return;const cc=calcLoan(l);cc.sched.forEach(s=>{if(s.status==='paid')return;
-    const overdue=new Date(s.due)<now;items.push({l,s,overdue,remain:s.totalDue-s.paid});});});
+    const overdue=new Date(s.due)<now;items.push({l,s,overdue,remain:s.totalAmountDue});});});
   if(SCH_FILTER==='upcoming')items=items.filter(i=>!i.overdue);
   else if(SCH_FILTER==='overdue')items=items.filter(i=>i.overdue);
   items.sort((a,b)=>new Date(a.s.due)-new Date(b.s.due));
@@ -610,7 +648,7 @@ VIEWS.reports=function(){const c=C();const t=bookTotals();const now=new Date();
   `));
   // aging summary
   const buckets={current:0,d1_30:0,d31_60:0,d60:0};
-  DB.loans.forEach(l=>{if(l.status==='cancelled')return;const cc=calcLoan(l);cc.sched.forEach(s=>{if(s.status==='paid')return;const remain=s.totalDue-s.paid;const dd=daysBetween(s.due,now);
+  DB.loans.forEach(l=>{if(l.status==='cancelled')return;const cc=calcLoan(l);cc.sched.forEach(s=>{if(s.status==='paid')return;const remain=s.totalAmountDue;const dd=daysBetween(s.due,now);
     if(dd<=0)buckets.current+=remain;else if(dd<=30)buckets.d1_30+=remain;else if(dd<=60)buckets.d31_60+=remain;else buckets.d60+=remain;});});
   const row=el('div','grid g2');row.style.marginTop='16px';
   const ag=el('div','card');ag.innerHTML=`<div class="ch"><div class="ci" style="background:var(--yellowbg);color:var(--yellowdk)">📊</div><h3>Aging Summary</h3></div>`;
@@ -643,9 +681,11 @@ VIEWS.settings=function(){const c=C();const co=DB.company;const s=DB.settings;
   const def=el('div','card');def.style.marginTop='16px';
   def.innerHTML=`<div class="ch"><div class="ci" style="background:var(--yellowbg);color:var(--yellowdk)">%</div><h3>Default Loan Settings</h3></div>
     <div class="grid g3" style="gap:12px">
-      <div class="field"><label>Default Rate (%/mo)</label><input id="sRate" type="number" step="0.01" value="${s.defaultRate}"></div>
+      <div class="field"><label>Default Annual Rate (%)</label><input id="sRate" type="number" step="0.01" value="${s.defaultRate}"></div>
       <div class="field"><label>Default Term (months)</label><input id="sTerm" type="number" value="${s.defaultTerm}"></div>
-      <div class="field"><label>Default Method</label><select id="sMethod">${Object.entries(METHOD).map(([k,v])=>`<option value="${k}" ${s.defaultMethod===k?'selected':''}>${v.lbl}</option>`).join('')}</select></div>
+      <div class="field"><label>Default Method</label><select id="sMethod">${LOAN_METHODS.map(k=>`<option value="${k}" ${s.defaultMethod===k?'selected':''}>${METHOD[k].lbl}</option>`).join('')}</select></div>
+      <div class="field"><label>Default Payment Frequency</label><select id="sFrequency">${Object.entries(FREQUENCY).map(([k,v])=>`<option value="${k}" ${s.defaultFrequency===k?'selected':''}>${v.lbl}</option>`).join('')}</select></div>
+      <div class="field"><label>Weekly Overdue Penalty (%)</label><input id="sPenalty" type="number" min="0" step="0.01" value="${+s.defaultPenaltyRate||0}"><div class="hint">Applied to each loan's overdue installment balance, never the original principal.</div></div>
     </div><button class="btn green" onclick="saveDefaults()">💾 I-save ang Defaults</button>`;
   c.appendChild(def);
   const stats=el('div','card');stats.style.marginTop='16px';
@@ -664,9 +704,9 @@ VIEWS.settings=function(){const c=C();const co=DB.company;const s=DB.settings;
 };
 function mini(l,v){return `<div style="background:var(--panel2);border-radius:11px;padding:12px;text-align:center"><div class="mono" style="font-weight:800;font-size:20px">${v}</div><div style="font-size:11px;color:var(--muted);font-weight:700">${l}</div></div>`;}
 function saveCompany(){const co=DB.company;co.name=document.getElementById('coName').value.trim()||co.name;co.owner=document.getElementById('coOwner').value.trim();co.phone=document.getElementById('coPhone').value.trim();commit('Na-save ang business info');}
-function saveDefaults(){const s=DB.settings;s.defaultRate=parseFloat(document.getElementById('sRate').value)||0;s.defaultTerm=parseInt(document.getElementById('sTerm').value)||1;s.defaultMethod=document.getElementById('sMethod').value;commit('Na-save ang defaults');}
+function saveDefaults(){const s=DB.settings;s.defaultRate=parseFloat(document.getElementById('sRate').value)||0;s.defaultTerm=parseInt(document.getElementById('sTerm').value)||1;s.defaultMethod=document.getElementById('sMethod').value;s.defaultFrequency=document.getElementById('sFrequency').value;s.defaultPenaltyRate=Math.max(0,parseFloat(document.getElementById('sPenalty').value)||0);commit('Na-save ang defaults');}
 function exportData(){const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='UtangTracker-backup-'+todayStr()+'.json';a.click();toast('Na-download ang backup');}
-function importData(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.loans)throw 0;DB=d;save();updateBadges();toast('Na-restore!');go('dashboard');}catch(e){toast('Sirang backup file','err');}};r.readAsText(f);input.value='';}
+function importData(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.loans)throw 0;DB=normalizeData(d);save();updateBadges();toast('Na-restore!');go('dashboard');}catch(e){toast('Sirang backup file','err');}};r.readAsText(f);input.value='';}
 function resetAll(){confirmDo('Sigurado ka? Mabubura LAHAT ng data. Hindi na mababawi!',()=>{const cleared=emptyData();
   try{localStorage.setItem(KEY,JSON.stringify(cleared));const stored=JSON.parse(localStorage.getItem(KEY));
     if(!stored||!Array.isArray(stored.borrowers)||!Array.isArray(stored.loans)||!Array.isArray(stored.payments)||stored.borrowers.length||stored.loans.length||stored.payments.length)throw new Error('Reset failed');
