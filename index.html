@@ -120,6 +120,7 @@ td .nm{font-weight:700}td .sub{font-size:12px;color:var(--muted)}
 .auth-card{width:min(100%,420px);background:#fff;border-radius:20px;box-shadow:var(--shadow2);padding:26px}
 .auth-card h1{font-family:'Archivo';font-style:italic;font-size:26px;margin:0 0 6px}.auth-card p{color:var(--muted);font-size:13px;margin:0 0 22px}
 .auth-error{min-height:18px;color:var(--red);font-size:12px;font-weight:700;margin-top:10px}
+.auth-card.auth-register{width:min(100%,520px)}.auth-kicker{display:inline-block;margin-bottom:10px;color:var(--greendk);background:var(--greenbg);border-radius:20px;padding:5px 9px;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.auth-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.auth-nav button{padding:10px;border:1.5px solid var(--line);border-radius:10px;color:var(--ink2);font-size:12px;font-weight:800;transition:.15s}.auth-nav button:hover{border-color:var(--green);color:var(--greendk);background:var(--greenbg)}.auth-back{width:100%;margin-top:10px;color:var(--muted);font-size:12px;font-weight:800;padding:8px}.auth-back:hover{color:var(--greendk)}.auth-note{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:11px 12px;color:var(--ink2);font-size:11.5px;line-height:1.5;margin-bottom:14px}.auth-success{min-height:18px;color:var(--greendk);font-size:12px;font-weight:700;margin-top:10px}.auth-account{text-align:center}.auth-account .auth-mark{width:58px;height:58px;margin:0 auto 16px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(135deg,var(--green2),var(--green));color:#fff;font-size:25px;box-shadow:0 10px 24px rgba(79,174,42,.28)}.auth-email{font-family:'JetBrains Mono';font-size:12px!important;color:var(--ink2)!important;background:var(--panel2);padding:10px;border-radius:10px;margin-bottom:14px!important;overflow-wrap:anywhere}.auth-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
 
 .overlay{position:fixed;inset:0;background:rgba(6,14,4,.62);backdrop-filter:blur(3px);z-index:100;display:none;align-items:center;justify-content:center;padding:18px}
 .overlay.on{display:flex}
@@ -157,19 +158,49 @@ td .nm{font-weight:700}td .sub{font-size:12px;color:var(--muted)}
   .scrim{position:fixed;inset:0;background:rgba(6,14,4,.5);z-index:35;display:none}.scrim.on{display:block}
   .g4{grid-template-columns:repeat(2,1fr)}.pagehead h2{font-size:19px}
 }
-@media(max-width:440px){.g4{grid-template-columns:1fr}}
+@media(max-width:440px){.g4{grid-template-columns:1fr}.auth-grid{grid-template-columns:1fr}.auth-nav{grid-template-columns:1fr}}
 @media print{body::before{display:none}.side,.topbar,.no-print{display:none!important}.overlay{position:static;background:none;padding:0}.modal{box-shadow:none;max-width:none}body{background:#fff}}
 </style>
 </head>
 <body>
 <div class="auth-gate" id="authGate">
   <form class="auth-card" id="adminLoginForm">
+    <span class="auth-kicker">LendSync Admin</span>
     <h1>Admin Login</h1><p>Sign in to manage borrowers, loans, and collections.</p>
     <div class="field"><label>Username</label><input id="adminUsername" autocomplete="username" required></div>
     <div class="field"><label>Password</label><input id="adminPassword" type="password" autocomplete="current-password" required></div>
     <button class="btn green wide" id="adminLoginButton" type="submit">Sign In</button>
     <div class="auth-error" id="adminLoginError" role="alert"></div>
+    <div class="auth-nav"><button type="button" onclick="showAuthPanel('borrowerLoginForm')">Borrower Login</button><button type="button" onclick="showAuthPanel('borrowerRegisterForm')">Register as Borrower</button></div>
   </form>
+  <form class="auth-card" id="borrowerLoginForm" hidden>
+    <span class="auth-kicker">Borrower Access</span>
+    <h1>Borrower Login</h1><p>Sign in to your securely linked LendSync account.</p>
+    <div class="field"><label>Email</label><input id="borrowerLoginEmail" type="email" autocomplete="username" required></div>
+    <div class="field"><label>Password</label><input id="borrowerLoginPassword" type="password" autocomplete="current-password" required></div>
+    <button class="btn green wide" id="borrowerLoginButton" type="submit">Sign In</button>
+    <div class="auth-success" id="borrowerLoginSuccess" role="status"></div>
+    <div class="auth-error" id="borrowerLoginError" role="alert"></div>
+    <div class="auth-nav"><button type="button" onclick="showAuthPanel('borrowerRegisterForm')">Register as Borrower</button><button type="button" onclick="showAuthPanel('adminLoginForm')">Admin Login</button></div>
+  </form>
+  <form class="auth-card auth-register" id="borrowerRegisterForm" hidden>
+    <span class="auth-kicker">Link Existing Record</span>
+    <h1>Register as Borrower</h1><p>Create secure login access for your existing borrower record.</p>
+    <div class="auth-note">Use the Borrower ID, full name, and phone number already registered by your lender. Registration never creates a new borrower record.</div>
+    <div class="auth-grid"><div class="field"><label>Borrower ID</label><input id="borrowerRegisterId" autocomplete="off" required></div><div class="field"><label>Registered Full Name</label><input id="borrowerRegisterName" autocomplete="name" required></div></div>
+    <div class="auth-grid"><div class="field"><label>Registered Phone</label><input id="borrowerRegisterPhone" type="tel" autocomplete="tel" required></div><div class="field"><label>Email</label><input id="borrowerRegisterEmail" type="email" autocomplete="email" required></div></div>
+    <div class="field"><label>Password</label><input id="borrowerRegisterPassword" type="password" autocomplete="new-password" minlength="12" maxlength="256" required><div class="hint">Use at least 12 characters.</div></div>
+    <button class="btn green wide" id="borrowerRegisterButton" type="submit">Create Borrower Account</button>
+    <div class="auth-error" id="borrowerRegisterError" role="alert"></div>
+    <button class="auth-back" type="button" onclick="showAuthPanel('borrowerLoginForm')">Already registered? Borrower Login</button>
+    <button class="auth-back" type="button" onclick="showAuthPanel('adminLoginForm')">Back to Admin Login</button>
+  </form>
+  <section class="auth-card auth-account" id="borrowerAccountPanel" hidden>
+    <div class="auth-mark">✓</div><span class="auth-kicker">Secure Session Active</span>
+    <h1>You're signed in</h1><p>Your borrower account is securely linked. The borrower dashboard is coming in the next phase.</p>
+    <p class="auth-email" id="borrowerSessionEmail"></p>
+    <button class="btn green wide" id="borrowerLogoutButton" type="button" onclick="logoutBorrower()">Logout</button>
+  </section>
 </div>
 <div class="app" id="app" hidden>
   <aside class="side" id="side">
@@ -724,9 +755,16 @@ async function tick(){const n=new Date();document.getElementById('clkDate').text
   if(!DB||CURRENT==='settings'||document.getElementById('overlay').classList.contains('on')||/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))return;await refreshFromCentral();
 }
 let TICK_TIMER=null;
+const AUTH_PANELS=['adminLoginForm','borrowerLoginForm','borrowerRegisterForm','borrowerAccountPanel'];
+function showAuthPanel(panelId){AUTH_PANELS.forEach(id=>document.getElementById(id).hidden=id!==panelId);['adminLoginError','borrowerLoginError','borrowerRegisterError','borrowerLoginSuccess'].forEach(id=>document.getElementById(id).textContent='');const focusByPanel={adminLoginForm:'adminUsername',borrowerLoginForm:'borrowerLoginEmail',borrowerRegisterForm:'borrowerRegisterId'};const focusId=focusByPanel[panelId];if(focusId)setTimeout(()=>document.getElementById(focusId).focus(),0);}
+function showBorrowerAccount(email){document.getElementById('borrowerSessionEmail').textContent=email;showAuthPanel('borrowerAccountPanel');document.getElementById('authGate').hidden=false;document.getElementById('app').hidden=true;}
+async function restoreBorrowerSession(){try{const res=await fetch('/api/borrower/auth/session',{credentials:'same-origin',cache:'no-store'});if(!res.ok)return false;const session=await res.json();if(!session.authenticated)return false;showBorrowerAccount(session.email||'Borrower account');return true;}catch(e){return false;}}
 async function startApp(){const err=document.getElementById('adminLoginError');try{await load();}catch(e){err.textContent=e.message||'Unable to load centralized data.';return false;}document.getElementById('authGate').hidden=true;document.getElementById('app').hidden=false;tick();if(!TICK_TIMER)TICK_TIMER=setInterval(tick,5000);updateBadges();go('dashboard');setTimeout(offerLocalImport,0);return true;}
-async function checkAdminSession(){try{const res=await fetch('/.netlify/functions/admin-login',{credentials:'same-origin'});if(res.ok&&await startApp())return;}catch(e){}document.getElementById('adminUsername').focus();}
-async function logoutAdmin(){const btn=document.getElementById('adminLogoutButton');btn.disabled=true;try{const res=await fetch('/.netlify/functions/admin-login',{method:'DELETE',credentials:'same-origin'});if(!res.ok)throw new Error();if(TICK_TIMER){clearInterval(TICK_TIMER);TICK_TIMER=null;}DB=null;LAST_SAVED_DB=null;CENTRAL_ETAG='';document.getElementById('content').innerHTML='';closeSide();document.getElementById('app').hidden=true;document.getElementById('authGate').hidden=false;document.getElementById('adminPassword').value='';document.getElementById('adminLoginError').textContent='';document.getElementById('adminUsername').focus();}catch(e){toast('Unable to log out. Please try again.','err');}finally{btn.disabled=false;}}
+async function checkAdminSession(){try{const res=await fetch('/.netlify/functions/admin-login',{credentials:'same-origin'});if(res.ok&&await startApp())return;}catch(e){}if(await restoreBorrowerSession())return;showAuthPanel('adminLoginForm');}
+async function logoutAdmin(){const btn=document.getElementById('adminLogoutButton');btn.disabled=true;try{const res=await fetch('/.netlify/functions/admin-login',{method:'DELETE',credentials:'same-origin'});if(!res.ok)throw new Error();if(TICK_TIMER){clearInterval(TICK_TIMER);TICK_TIMER=null;}DB=null;LAST_SAVED_DB=null;CENTRAL_ETAG='';document.getElementById('content').innerHTML='';closeSide();document.getElementById('app').hidden=true;document.getElementById('authGate').hidden=false;document.getElementById('adminPassword').value='';showAuthPanel('adminLoginForm');}catch(e){toast('Unable to log out. Please try again.','err');}finally{btn.disabled=false;}}
+document.getElementById('borrowerRegisterForm').addEventListener('submit',async e=>{e.preventDefault();const btn=document.getElementById('borrowerRegisterButton');const err=document.getElementById('borrowerRegisterError');const email=document.getElementById('borrowerRegisterEmail').value.trim();btn.disabled=true;btn.textContent='Creating Account...';err.textContent='';try{const res=await fetch('/api/borrower/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({borrowerId:document.getElementById('borrowerRegisterId').value.trim(),registeredName:document.getElementById('borrowerRegisterName').value.trim(),registeredPhone:document.getElementById('borrowerRegisterPhone').value.trim(),email,password:document.getElementById('borrowerRegisterPassword').value})});if(!res.ok){err.textContent='Unable to create an account with the provided borrower information.';return;}e.currentTarget.reset();showAuthPanel('borrowerLoginForm');document.getElementById('borrowerLoginEmail').value=email;document.getElementById('borrowerLoginSuccess').textContent='Registration complete. You can now sign in.';setTimeout(()=>document.getElementById('borrowerLoginPassword').focus(),0);}catch(error){err.textContent='Unable to reach the registration service.';}finally{btn.disabled=false;btn.textContent='Create Borrower Account';}});
+document.getElementById('borrowerLoginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=document.getElementById('borrowerLoginButton');const err=document.getElementById('borrowerLoginError');btn.disabled=true;btn.textContent='Signing In...';err.textContent='';try{const res=await fetch('/api/borrower/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({email:document.getElementById('borrowerLoginEmail').value.trim(),password:document.getElementById('borrowerLoginPassword').value})});if(!res.ok){err.textContent='Invalid email or password.';return;}document.getElementById('borrowerLoginPassword').value='';if(!await restoreBorrowerSession())throw new Error();}catch(error){err.textContent='Unable to reach the login service.';}finally{btn.disabled=false;btn.textContent='Sign In';}});
+async function logoutBorrower(){const btn=document.getElementById('borrowerLogoutButton');btn.disabled=true;try{const res=await fetch('/api/borrower/auth/logout',{method:'POST',credentials:'same-origin'});if(!res.ok)throw new Error();document.getElementById('borrowerSessionEmail').textContent='';document.getElementById('borrowerLoginSuccess').textContent='';showAuthPanel('borrowerLoginForm');}catch(e){toast('Unable to log out. Please try again.','err');}finally{btn.disabled=false;}}
 document.getElementById('adminLoginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=document.getElementById('adminLoginButton');const err=document.getElementById('adminLoginError');btn.disabled=true;btn.textContent='Signing In...';err.textContent='';
   try{const res=await fetch('/.netlify/functions/admin-login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({username:document.getElementById('adminUsername').value,password:document.getElementById('adminPassword').value})});
     if(!res.ok){err.textContent=res.status===401?'Invalid username or password.':'Admin login is unavailable.';return;}document.getElementById('adminPassword').value='';await startApp();
