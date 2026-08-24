@@ -400,7 +400,7 @@ VIEWS.borrowers=function(){const c=C();const head=el('div','pagehead');
   const add=el('button','btn green','＋ Bagong Borrower');add.onclick=()=>editBorrower();head.appendChild(add);c.appendChild(head);
   const box=el('div');box.id='borBox';c.appendChild(box);renderBorrowers();
 };
-function renderBorrowers(){const box=document.getElementById('borBox');if(!box)return;const q=BOR_SEARCH.toLowerCase();
+function renderBorrowers(){const box=document.getElementById('borBox');if(!box)return;box.innerHTML='';const q=BOR_SEARCH.toLowerCase();
   const list=DB.borrowers.filter(b=>!q||b.name.toLowerCase().includes(q)||(b.phone||'').includes(q));
   if(!list.length){box.innerHTML='<div class="card"><div class="empty-state"><div class="e">👥</div><h4>Wala pang borrower</h4><p>Magdagdag ng borrower</p></div></div>';return;}
   const grid=el('div','grid g3');
