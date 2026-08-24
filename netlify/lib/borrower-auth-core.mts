@@ -35,6 +35,14 @@ export function registeredIdentityMatches(
     && storedPhone === normalizePhone(input.registeredPhone)
 }
 
+export function resolveMatchingBorrowerId(
+  borrowerRows: Array<{ id: string; name: string; phone: string }>,
+  input: { registeredName: string; registeredPhone: string },
+) {
+  const matches = borrowerRows.filter((borrower) => registeredIdentityMatches(borrower, input))
+  return matches.length === 1 ? matches[0].id : null
+}
+
 async function derivePassword(password: string, salt: Buffer, cost = SCRYPT_COST, blockSize = SCRYPT_BLOCK_SIZE, parallelization = SCRYPT_PARALLELIZATION) {
   return new Promise<Buffer>((resolve, reject) => {
     nodeScrypt(password, salt, SCRYPT_KEY_LENGTH, {

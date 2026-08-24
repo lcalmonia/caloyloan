@@ -11,6 +11,7 @@ import {
   normalizeName,
   normalizePhone,
   registeredIdentityMatches,
+  resolveMatchingBorrowerId,
   verifyPassword,
 } from '../netlify/lib/borrower-auth-core.mts'
 import { clearAdminSessionCookie, createAdminSessionCookie, validateAdminCredentials } from '../netlify/lib/admin-auth.mts'
@@ -26,6 +27,17 @@ test('borrower registration matching normalizes registered identity fields', () 
     { name: 'Maria Santos', phone: '+63 917-555-0100' },
     { registeredName: 'Maria Santos', registeredPhone: '0917 555 0199' },
   ), false)
+})
+
+test('borrower registration resolves only one exact normalized borrower match', () => {
+  const input = { registeredName: ' maria  santos ', registeredPhone: '0917 555 0100' }
+  const matchingBorrower = { id: 'borrower-a', name: 'Maria Santos', phone: '+63 917-555-0100' }
+  assert.equal(resolveMatchingBorrowerId([matchingBorrower], input), 'borrower-a')
+  assert.equal(resolveMatchingBorrowerId([matchingBorrower], { ...input, registeredPhone: '0917 555 0199' }), null)
+  assert.equal(resolveMatchingBorrowerId([
+    matchingBorrower,
+    { id: 'borrower-b', name: 'MARIA SANTOS', phone: '09175550100' },
+  ], input), null)
 })
 
 test('password credentials use scrypt and never contain plaintext', async () => {
@@ -105,7 +117,8 @@ test('borrower registration and login entry points use Phase 4A APIs only', asyn
   assert.match(source, />Borrower Login<\/button>/)
   assert.match(source, />Register as Borrower<\/button>/)
   assert.match(source, /fetch\('\/api\/borrower\/auth\/register'/)
-  assert.match(source, /borrowerId:document\.getElementById\('borrowerRegisterId'\)/)
+  assert.doesNotMatch(source, /borrowerRegisterId/)
+  assert.doesNotMatch(source, />Borrower ID<\/label>/)
   assert.match(source, /registeredName:document\.getElementById\('borrowerRegisterName'\)/)
   assert.match(source, /registeredPhone:document\.getElementById\('borrowerRegisterPhone'\)/)
   assert.match(source, /fetch\('\/api\/borrower\/auth\/login'/)
@@ -123,9 +136,11 @@ test('borrower UI keeps generic invalid and duplicate registration rejection', a
   assert.match(registrationSource, /status: 201/)
   assert.match(registrationSource, /status: 400/)
   assert.match(registrationSource, /Unable to create borrower account with the provided information\./)
-  assert.match(authenticationSource, /from\(borrowers\)\.where\(eq\(borrowers\.id, input\.borrowerId\.trim\(\)\)\)/)
-  assert.match(authenticationSource, /registeredIdentityMatches\(borrower/)
+  assert.match(authenticationSource, /from\(borrowers\)/)
+  assert.match(authenticationSource, /resolveMatchingBorrowerId\(borrowerRows/)
+  assert.match(authenticationSource, /if \(!borrowerId\) return false/)
   assert.match(authenticationSource, /db\.insert\(borrowerAccounts\)/)
+  assert.match(authenticationSource, /borrowerId,\n/)
   assert.doesNotMatch(authenticationSource, /insert\(borrowers\)/)
   assert.match(authenticationSource, /error\.code === '23505'/)
 })

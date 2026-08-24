@@ -11,7 +11,7 @@ import {
   hashSessionToken,
   normalizeEmail,
   readCookie,
-  registeredIdentityMatches,
+  resolveMatchingBorrowerId,
   validatePassword,
   verifyPassword,
 } from './borrower-auth-core.mjs'
@@ -19,7 +19,6 @@ import {
 export type BorrowerIdentity = { accountId: string; borrowerId: string; email: string }
 
 type RegistrationInput = {
-  borrowerId?: unknown
   registeredName?: unknown
   registeredPhone?: unknown
   email?: unknown
@@ -34,8 +33,7 @@ function isNonEmptyString(value: unknown): value is string {
 
 export async function registerBorrowerAccount(input: RegistrationInput) {
   if (
-    !isNonEmptyString(input.borrowerId)
-    || !isNonEmptyString(input.registeredName)
+    !isNonEmptyString(input.registeredName)
     || !isNonEmptyString(input.registeredPhone)
     || !isNonEmptyString(input.email)
     || typeof input.password !== 'string'
@@ -49,18 +47,18 @@ export async function registerBorrowerAccount(input: RegistrationInput) {
     id: borrowers.id,
     name: borrowers.name,
     phone: borrowers.phone,
-  }).from(borrowers).where(eq(borrowers.id, input.borrowerId.trim())).limit(1)
-  const borrower = borrowerRows[0]
-  if (!borrower || !registeredIdentityMatches(borrower, {
+  }).from(borrowers)
+  const borrowerId = resolveMatchingBorrowerId(borrowerRows, {
     registeredName: input.registeredName,
     registeredPhone: input.registeredPhone,
-  })) return false
+  })
+  if (!borrowerId) return false
 
   const passwordHash = await hashPassword(input.password)
   try {
     await db.insert(borrowerAccounts).values({
       id: randomUUID(),
-      borrowerId: borrower.id,
+      borrowerId,
       email: input.email.trim(),
       normalizedEmail,
       passwordHash,
