@@ -13,7 +13,7 @@ import {
   registeredIdentityMatches,
   verifyPassword,
 } from '../netlify/lib/borrower-auth-core.mts'
-import { createAdminSessionCookie, validateAdminCredentials } from '../netlify/lib/admin-auth.mts'
+import { clearAdminSessionCookie, createAdminSessionCookie, validateAdminCredentials } from '../netlify/lib/admin-auth.mts'
 
 test('borrower registration matching normalizes registered identity fields', () => {
   assert.equal(normalizeName('  Maria   Santos '), normalizeName('maria santos'))
@@ -84,4 +84,16 @@ test('existing admin credential and cookie behavior remains valid', () => {
   assert.match(cookie, /HttpOnly/)
   assert.match(cookie, /Secure/)
   assert.match(cookie, /SameSite=Strict/)
+})
+
+test('admin logout expires the session cookie and returns to login flow', async () => {
+  assert.match(clearAdminSessionCookie(), /Max-Age=0/)
+  const functionSource = await readFile(new URL('../netlify/functions/admin-login.mts', import.meta.url), 'utf8')
+  const interfaceSource = await readFile(new URL('../index.html', import.meta.url), 'utf8')
+  assert.match(functionSource, /request\.method === 'DELETE'/)
+  assert.match(functionSource, /clearAdminSessionCookie\(\)/)
+  assert.match(interfaceSource, /id="adminLogoutButton"[^>]*>Logout<\/button>/)
+  assert.match(interfaceSource, /method:'DELETE'/)
+  assert.match(interfaceSource, /document\.getElementById\('app'\)\.hidden=true/)
+  assert.match(interfaceSource, /document\.getElementById\('authGate'\)\.hidden=false/)
 })

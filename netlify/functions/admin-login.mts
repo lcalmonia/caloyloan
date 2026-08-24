@@ -1,4 +1,5 @@
 import {
+  clearAdminSessionCookie,
   createAdminSessionCookie,
   getAdminCredentials,
   isValidAdminSession,
@@ -6,6 +7,10 @@ import {
 } from '../lib/admin-auth.mjs'
 
 export default async (request: Request) => {
+  if (request.method === 'DELETE') {
+    return new Response(null, { status: 204, headers: { 'Set-Cookie': clearAdminSessionCookie() } })
+  }
+
   const { username: adminUsername, password: adminPassword } = getAdminCredentials()
 
   if (!adminUsername || !adminPassword) {
@@ -19,7 +24,7 @@ export default async (request: Request) => {
   }
 
   if (request.method !== 'POST') {
-    return new Response(null, { status: 405, headers: { Allow: 'GET, POST' } })
+    return new Response(null, { status: 405, headers: { Allow: 'GET, POST, DELETE' } })
   }
 
   let credentials: { username?: string; password?: string }
