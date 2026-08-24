@@ -1,0 +1,87 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import test from 'node:test'
+import {
+  borrowerRequestMatchesIdentity,
+  clearBorrowerSessionCookie,
+  createBorrowerSessionCookie,
+  createSessionToken,
+  hashPassword,
+  hashSessionToken,
+  normalizeName,
+  normalizePhone,
+  registeredIdentityMatches,
+  verifyPassword,
+} from '../netlify/lib/borrower-auth-core.mts'
+import { createAdminSessionCookie, validateAdminCredentials } from '../netlify/lib/admin-auth.mts'
+
+test('borrower registration matching normalizes registered identity fields', () => {
+  assert.equal(normalizeName('  Maria   Santos '), normalizeName('maria santos'))
+  assert.equal(normalizePhone('+63 917-555-0100'), normalizePhone('09175550100'))
+  assert.equal(registeredIdentityMatches(
+    { name: 'Maria Santos', phone: '+63 917-555-0100' },
+    { registeredName: ' maria  santos ', registeredPhone: '0917 555 0100' },
+  ), true)
+  assert.equal(registeredIdentityMatches(
+    { name: 'Maria Santos', phone: '+63 917-555-0100' },
+    { registeredName: 'Maria Santos', registeredPhone: '0917 555 0199' },
+  ), false)
+})
+
+test('password credentials use scrypt and never contain plaintext', async () => {
+  const password = 'correct horse battery staple'
+  const passwordHash = await hashPassword(password)
+  assert.match(passwordHash, /^scrypt\$/)
+  assert.equal(passwordHash.includes(password), false)
+  assert.equal(await verifyPassword(password, passwordHash), true)
+  assert.equal(await verifyPassword('invalid password', passwordHash), false)
+})
+
+test('invalid account lookup still performs a password derivation and rejects', async () => {
+  assert.equal(await verifyPassword('invalid password'), false)
+})
+
+test('borrower sessions use opaque tokens and hardened cookies', () => {
+  const token = createSessionToken()
+  const tokenHash = hashSessionToken(token)
+  const cookie = createBorrowerSessionCookie(token)
+  assert.notEqual(tokenHash, token)
+  assert.equal(tokenHash.includes(token), false)
+  assert.match(cookie, /HttpOnly/)
+  assert.match(cookie, /Secure/)
+  assert.match(cookie, /SameSite=Strict/)
+})
+
+test('authorization permits only the session borrower identity', () => {
+  assert.equal(borrowerRequestMatchesIdentity('borrower-a'), true)
+  assert.equal(borrowerRequestMatchesIdentity('borrower-a', 'borrower-a'), true)
+  assert.equal(borrowerRequestMatchesIdentity('borrower-a', 'borrower-b'), false)
+})
+
+test('logout expires the borrower cookie immediately', () => {
+  assert.match(clearBorrowerSessionCookie(), /Max-Age=0/)
+})
+
+test('database migration enforces one account per existing borrower', async () => {
+  const migration = await readFile(new URL('../netlify/database/migrations/20260824135356_add_borrower_authentication/migration.sql', import.meta.url), 'utf8')
+  assert.match(migration, /UNIQUE INDEX "borrower_accounts_borrower_id_unique"/)
+  assert.match(migration, /FOREIGN KEY \("borrower_id"\) REFERENCES "borrowers"\("id"\)/)
+  assert.match(migration, /"password_hash" text NOT NULL/)
+  assert.doesNotMatch(migration, /"password" text/)
+})
+
+test('borrower data endpoint reads using authenticated identity', async () => {
+  const source = await readFile(new URL('../netlify/functions/borrower-data.mts', import.meta.url), 'utf8')
+  assert.match(source, /readBorrowerDataset\(scope\.identity\.borrowerId\)/)
+  assert.doesNotMatch(source, /readBorrowerDataset\(requestedBorrowerId\)/)
+  assert.match(source, /status: 403/)
+})
+
+test('existing admin credential and cookie behavior remains valid', () => {
+  assert.equal(validateAdminCredentials('admin', 'secret', 'admin', 'secret'), true)
+  assert.equal(validateAdminCredentials('admin', 'wrong', 'admin', 'secret'), false)
+  const cookie = createAdminSessionCookie('secret')
+  assert.match(cookie, /HttpOnly/)
+  assert.match(cookie, /Secure/)
+  assert.match(cookie, /SameSite=Strict/)
+})
