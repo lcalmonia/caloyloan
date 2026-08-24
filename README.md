@@ -1,4 +1,4 @@
-# UtangTracker / LendPro
+# LendSync by OrderSphere
 
 A static duplication of the supplied Netlify-hosted loan management application. The app provides dashboards, borrower and loan tracking, payment collection, schedules, reports, and settings in a responsive single-page interface.
 

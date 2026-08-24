@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#dceeff">
-<title>UtangTracker / LendPro — Loan Management</title>
+<title>LendSync by OrderSphere — Loan Management</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,700;1,800&family=JetBrains+Mono:wght@400;500;700;800&family=Archivo:ital,wght@0,800;0,900;1,800;1,900&display=swap" rel="stylesheet">
@@ -172,7 +172,7 @@ td .nm{font-weight:700}td .sub{font-size:12px;color:var(--muted)}
 </div>
 <div class="app" id="app" hidden>
   <aside class="side" id="side">
-    <div class="brand"><div class="lg"><span class="u">Utang</span><span class="t">Tracker</span></div><span class="sub">/ LendPro</span></div>
+    <div class="brand"><div class="lg"><span class="u">Lend</span><span class="t">Sync</span></div><span class="sub">by OrderSphere</span></div>
     <nav class="nav" id="nav">
       <div class="cap">MAIN</div>
       <a data-view="dashboard" class="on"><span class="ico">📊</span>Dashboard</a>
@@ -705,7 +705,7 @@ VIEWS.settings=function(){const c=C();const co=DB.company;const s=DB.settings;
 function mini(l,v){return `<div style="background:var(--panel2);border-radius:11px;padding:12px;text-align:center"><div class="mono" style="font-weight:800;font-size:20px">${v}</div><div style="font-size:11px;color:var(--muted);font-weight:700">${l}</div></div>`;}
 function saveCompany(){const co=DB.company;co.name=document.getElementById('coName').value.trim()||co.name;co.owner=document.getElementById('coOwner').value.trim();co.phone=document.getElementById('coPhone').value.trim();commit('Na-save ang business info');}
 function saveDefaults(){const s=DB.settings;s.defaultRate=parseFloat(document.getElementById('sRate').value)||0;s.defaultTerm=parseInt(document.getElementById('sTerm').value)||1;s.defaultMethod=document.getElementById('sMethod').value;s.defaultFrequency=document.getElementById('sFrequency').value;s.defaultPenaltyRate=Math.max(0,parseFloat(document.getElementById('sPenalty').value)||0);commit('Na-save ang defaults');}
-function exportData(){const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='UtangTracker-backup-'+todayStr()+'.json';a.click();toast('Na-download ang backup');}
+function exportData(){const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='LendSync-backup-'+todayStr()+'.json';a.click();toast('Na-download ang backup');}
 function importData(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.loans)throw 0;DB=normalizeData(d);save();updateBadges();toast('Na-restore!');go('dashboard');}catch(e){toast('Sirang backup file','err');}};r.readAsText(f);input.value='';}
 function resetAll(){confirmDo('Sigurado ka? Mabubura LAHAT ng data. Hindi na mababawi!',()=>{const cleared=emptyData();
   try{localStorage.setItem(KEY,JSON.stringify(cleared));const stored=JSON.parse(localStorage.getItem(KEY));
