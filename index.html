@@ -230,11 +230,16 @@ const METHOD={reducing:{lbl:'True Diminishing / Reducing Balance'},simple:{lbl:'
 const LOAN_METHODS=['reducing','simple','compound'];
 const FREQUENCY={weekly:{lbl:'Weekly'},bimonthly:{lbl:'Bi-Monthly (twice/month)'},monthly:{lbl:'Monthly'}};
 
-let DB=null;
-function save(){localStorage.setItem(KEY,JSON.stringify(DB));}
+const ADMIN_DATA_API='/api/admin/data';
+let DB=null,LAST_SAVED_DB=null,LOCAL_IMPORT_DATA=null,CENTRAL_EMPTY=false,CENTRAL_ETAG='',SYNCING=false,POLLING=false;
+const cloneData=d=>JSON.parse(JSON.stringify(d));
+const validData=d=>d&&d.company&&d.settings&&d.counter&&Array.isArray(d.borrowers)&&Array.isArray(d.loans)&&Array.isArray(d.payments);
 function normalizeData(d){const s=d.settings||(d.settings={});if(!s.loanCalcVersion){s.defaultRate=(+s.defaultRate||0)*12;s.defaultMethod='reducing';s.defaultFrequency='monthly';s.defaultPenaltyRate=0;s.loanCalcVersion=2;}
   d.loans.forEach(l=>{if(!l.frequency)l.frequency='monthly';if(l.penaltyRate==null)l.penaltyRate=0;if(!l.penaltyRule)l.penaltyRule='overdue_balance_weekly';if(!l.rateBasis)l.rateBasis=LOAN_METHODS.includes(l.method)?'annual':'monthly';});return d;}
-function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.loans)return normalizeData(d);}catch(e){}return emptyData();}
+async function fetchAdminData(){const res=await fetch(ADMIN_DATA_API,{credentials:'same-origin',cache:'no-store'});if(!res.ok)throw new Error(res.status===401?'Admin session expired.':'Hindi ma-load ang centralized data.');const d=await res.json();if(!validData(d))throw new Error('Invalid centralized data.');return {data:normalizeData(d),databaseEmpty:res.headers.get('X-LendSync-Database-Empty')==='true',etag:res.headers.get('ETag')||''};}
+async function load(){const result=await fetchAdminData();CENTRAL_EMPTY=result.databaseEmpty;CENTRAL_ETAG=result.etag;DB=result.data;LAST_SAVED_DB=cloneData(DB);LOCAL_IMPORT_DATA=readLocalImportData();return DB;}
+async function save(options={}){if(SYNCING)throw new Error('May pagbabago pang sine-save. Subukan muli.');const payload=cloneData(DB);SYNCING=true;try{const headers={'Content-Type':'application/json'};if(CENTRAL_ETAG)headers['If-Match']=CENTRAL_ETAG;if(options.requireEmpty)headers['X-LendSync-Require-Empty']='true';const res=await fetch(ADMIN_DATA_API,{method:'PUT',headers,credentials:'same-origin',body:JSON.stringify(payload)});if(!res.ok){let detail='';try{detail=(await res.json()).error||'';}catch(e){}throw new Error(detail||'Hindi na-save sa centralized database.');}CENTRAL_EMPTY=false;CENTRAL_ETAG=res.headers.get('ETag')||CENTRAL_ETAG;DB=cloneData(payload);LAST_SAVED_DB=cloneData(payload);return true;}finally{SYNCING=false;}}
+function readLocalImportData(){try{const d=JSON.parse(localStorage.getItem(KEY));if(!validData(d))return null;const normalized=normalizeData(d);const blank=emptyData();const meaningful=normalized.borrowers.length||normalized.loans.length||normalized.payments.length||normalized.counter.loan!==blank.counter.loan||JSON.stringify(normalized.company)!==JSON.stringify(blank.company)||JSON.stringify(normalized.settings)!==JSON.stringify(blank.settings);return meaningful?normalized:null;}catch(e){return null;}}
 
 function emptyData(){return {company:{name:'JuanLend Financing',owner:'Admin',phone:'0917 555 0100'},
   settings:{defaultRate:12,defaultTerm:12,defaultMethod:'reducing',defaultFrequency:'monthly',defaultPenaltyRate:0,loanCalcVersion:2},counter:{loan:1000},
@@ -315,7 +320,7 @@ function bookTotals(){let tPayable=0,tCollected=0,tOutstanding=0,tOverdue=0,tPri
 
 /* ---------- ui utils ---------- */
 function toast(msg,type=''){const t=el('div','toast '+type,(type==='err'?'⚠️ ':'✅ ')+esc(msg));document.getElementById('toasts').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(30px)';setTimeout(()=>t.remove(),250);},2600);}
-function commit(msg){save();updateBadges();if(msg)toast(msg);}
+async function commit(msg,options){try{await save(options);updateBadges();if(msg)toast(msg);return true;}catch(e){DB=cloneData(LAST_SAVED_DB);updateBadges();document.getElementById('content').innerHTML='';VIEWS[CURRENT]();toast(e.message||'Hindi na-save ang pagbabago.','err');return false;}}
 function openModal(html,wide){const m=document.getElementById('modal');m.className='modal'+(wide?' wide':'');m.innerHTML=html;document.getElementById('overlay').classList.add('on');}
 function closeModal(){document.getElementById('overlay').classList.remove('on');}
 document.getElementById('overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeModal();});
@@ -421,14 +426,14 @@ function editBorrower(id){const b=id?findBorrower(id):{name:'',phone:'',address:
     <div class="field"><label>Address</label><input id="bAddr" value="${esc(b.address)}"></div>
     <div class="field"><label>Notes</label><textarea id="bNotes">${esc(b.notes)}</textarea></div></div>
   <div class="mf"><button class="btn ghost" onclick="closeModal()">Kanselahin</button><button class="btn green" onclick="saveBorrower('${id||''}')">💾 I-save</button></div>`);}
-function saveBorrower(id){const name=document.getElementById('bName').value.trim();if(!name){toast('Ilagay ang pangalan','err');return;}
+async function saveBorrower(id){const name=document.getElementById('bName').value.trim();if(!name){toast('Ilagay ang pangalan','err');return;}
   const data={name,phone:document.getElementById('bPhone').value.trim(),address:document.getElementById('bAddr').value.trim(),notes:document.getElementById('bNotes').value.trim()};
-  if(id)Object.assign(findBorrower(id),data);else DB.borrowers.push({id:uid(),...data});commit('Na-save ang borrower');closeModal();renderBorrowers();}
+  if(id)Object.assign(findBorrower(id),data);else DB.borrowers.push({id:uid(),...data});if(await commit('Na-save ang borrower')){closeModal();renderBorrowers();}}
 function deleteBorrower(id){const b=findBorrower(id);if(!b)return;
   if(DB.loans.some(l=>l.borrowerId===id&&calcLoan(l).balance>0)){toast('Hindi maaaring burahin ang borrower na ito dahil mayroon pa siyang outstanding loan.','err');return;}
   const loanCount=DB.loans.filter(l=>l.borrowerId===id).length;
   const detail=loanCount?` May ${loanCount} loan record na mananatili sa Loans at Payments.`:'';
-  confirmDo(`Burahin si ${b.name} sa borrower records?${detail}`,()=>{DB.borrowers=DB.borrowers.filter(x=>x.id!==id);commit('Nabura ang borrower');go('borrowers');});}
+  confirmDo(`Burahin si ${b.name} sa borrower records?${detail}`,async()=>{DB.borrowers=DB.borrowers.filter(x=>x.id!==id);if(await commit('Nabura ang borrower'))go('borrowers');});}
 
 /* ============================================================ LOANS */
 let LOAN_FILTER='all',LOAN_SEARCH='';
@@ -490,13 +495,13 @@ function loanPreview(){const P=parseFloat(document.getElementById('lPrin').value
       <div><div style="font-size:11px;color:var(--muted);font-weight:700">First Installment</div><div class="mono" style="font-weight:800;font-size:15px">${PESO0(first.totalDue)}</div></div>
       <div><div style="font-size:11px;color:var(--muted);font-weight:700">Schedule</div><div class="mono" style="font-weight:800;font-size:15px">${preview.sched.length} payments</div></div>
     </div>`;}
-function saveLoan(id){const bor=findBorrower(document.getElementById('lBor').value);if(!bor){toast('Pumili ng borrower','err');return;}
+async function saveLoan(id){const bor=findBorrower(document.getElementById('lBor').value);if(!bor){toast('Pumili ng borrower','err');return;}
   const P=parseFloat(document.getElementById('lPrin').value)||0;if(P<=0){toast('Ilagay ang principal','err');return;}
   const data={borrowerId:bor.id,borrowerName:bor.name,principal:P,rate:parseFloat(document.getElementById('lRate').value)||0,
     term:parseInt(document.getElementById('lTerm').value)||1,method:document.getElementById('lMethod').value,frequency:document.getElementById('lFrequency').value,
     startDate:new Date(document.getElementById('lDate').value+'T00:00').toISOString(),notes:document.getElementById('lNotes').value.trim()};
   data.rateBasis=LOAN_METHODS.includes(data.method)?'annual':'monthly';let loan;if(id){loan=findLoan(id);Object.assign(loan,data);}else{DB.counter.loan++;loan={id:uid(),no:'LN-'+DB.counter.loan,status:'ongoing',penaltyRate:+DB.settings.defaultPenaltyRate||0,penaltyRule:'overdue_balance_weekly',...data};DB.loans.push(loan);}
-  commit('Na-save ang loan '+loan.no);closeModal();viewLoan(loan.id);}
+  if(await commit('Na-save ang loan '+loan.no)){closeModal();viewLoan(loan.id);}}
 
 /* LOAN DETAIL + AMORTIZATION */
 function viewLoan(id){const l=findLoan(id);if(!l)return go('loans');const cc=calcLoan(l);const c=C();c.innerHTML='';
@@ -508,7 +513,7 @@ function viewLoan(id){const l=findLoan(id);if(!l)return go('loans');const cc=cal
   const edit=el('button','btn dark sm','✏️ Edit');edit.onclick=()=>editLoan(id);bar.appendChild(edit);
   const prn=el('button','btn ghost sm','🖨️ Print');prn.onclick=()=>window.print();bar.appendChild(prn);
   const sp=el('div');sp.style.flex='1';bar.appendChild(sp);
-  const del=el('button','btn ghost sm','🗑️');del.onclick=()=>confirmDo('Burahin ang loan '+l.no+' at lahat ng bayad nito?',()=>{DB.loans=DB.loans.filter(x=>x.id!==id);DB.payments=DB.payments.filter(p=>p.loanId!==id);commit('Nabura');go('loans');});bar.appendChild(del);
+  const del=el('button','btn ghost sm','🗑️');del.onclick=()=>confirmDo('Burahin ang loan '+l.no+' at lahat ng bayad nito?',async()=>{DB.loans=DB.loans.filter(x=>x.id!==id);DB.payments=DB.payments.filter(p=>p.loanId!==id);if(await commit('Nabura'))go('loans');});bar.appendChild(del);
   c.appendChild(bar);
   const grid=el('div','grid g2');
   // details
@@ -567,10 +572,10 @@ function recordPayment(loanId){const l=findLoan(loanId);const cc=calcLoan(l);
     <div class="field"><label>Note</label><input id="payNote" placeholder="Optional"></div>
   </div>
   <div class="mf"><button class="btn ghost" onclick="closeModal()">Kanselahin</button><button class="btn green" onclick="doPayment('${loanId}')">✔ I-record ang Bayad</button></div>`);}
-function doPayment(loanId){const l=findLoan(loanId);const amt=parseFloat(document.getElementById('payAmt').value)||0;if(amt<=0){toast('Ilagay ang halaga','err');return;}
+async function doPayment(loanId){const l=findLoan(loanId);const amt=parseFloat(document.getElementById('payAmt').value)||0;if(amt<=0){toast('Ilagay ang halaga','err');return;}
   DB.payments.push({id:uid(),loanId,borrowerId:l.borrowerId,borrowerName:l.borrowerName,date:new Date(document.getElementById('payDate').value+'T00:00').toISOString(),amount:amt,method:document.getElementById('payMethod').value,note:document.getElementById('payNote').value.trim()});
-  commit('Na-record ang bayad na '+PESO0(amt));closeModal();viewLoan(loanId);}
-function delPayment(pid,loanId){confirmDo('Burahin ang bayad na ito?',()=>{DB.payments=DB.payments.filter(p=>p.id!==pid);commit('Nabura');viewLoan(loanId);});}
+  if(await commit('Na-record ang bayad na '+PESO0(amt))){closeModal();viewLoan(loanId);}}
+function delPayment(pid,loanId){confirmDo('Burahin ang bayad na ito?',async()=>{DB.payments=DB.payments.filter(p=>p.id!==pid);if(await commit('Nabura'))viewLoan(loanId);});}
 function reminderText(loanId){const l=findLoan(loanId);const cc=calcLoan(l);const b=findBorrower(l.borrowerId);
   const co=DB.company.name;const due=cc.nextDue?fmtDate(cc.nextDue):'';
   const msg=`Hi ${l.borrowerName.split(' ')[0]}! 😊 Friendly reminder po mula sa ${co}. May balance kayong ${PESO0(cc.balance)}${due?` na may due date na ${due}`:''}. Sana po mabayaran on time para iwas penalty at ma-maintain ang good record. Maraming salamat po! 🙏`;
@@ -694,38 +699,37 @@ VIEWS.settings=function(){const c=C();const co=DB.company;const s=DB.settings;
   c.appendChild(stats);
   const bk=el('div','card');bk.style.marginTop='16px';
   bk.innerHTML=`<div class="ch"><div class="ci" style="background:var(--tealbg);color:var(--teal)">💾</div><h3>Backup & Restore</h3></div>
-    <p style="color:var(--ink2);font-size:13.5px;margin:0 0 14px">Lahat ng data naka-save sa device na ito (offline, secure). I-backup regular para iwas kalimot at iwas lugi.</p>
+    <p style="color:var(--ink2);font-size:13.5px;margin:0 0 14px">Centralized ang Admin data para pareho sa desktop at mobile. Mag-download pa rin ng backup regularly.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn dark" onclick="exportData()">⬇️ Download Backup</button>
       <button class="btn ghost" onclick="document.getElementById('impFile').click()">⬆️ Restore Backup</button>
       <input type="file" id="impFile" accept=".json" style="display:none" onchange="importData(this)">
+      ${CENTRAL_EMPTY&&LOCAL_IMPORT_DATA?`<button class="btn yellow" onclick="importLocalStorageData()">Import Existing Device Data</button>`:''}
       <div style="flex:1"></div><button class="btn ghost" onclick="resetAll()" style="color:var(--red);border-color:#f5c2c8">🗑️ Reset LAHAT</button></div>`;
   c.appendChild(bk);
 };
 function mini(l,v){return `<div style="background:var(--panel2);border-radius:11px;padding:12px;text-align:center"><div class="mono" style="font-weight:800;font-size:20px">${v}</div><div style="font-size:11px;color:var(--muted);font-weight:700">${l}</div></div>`;}
-function saveCompany(){const co=DB.company;co.name=document.getElementById('coName').value.trim()||co.name;co.owner=document.getElementById('coOwner').value.trim();co.phone=document.getElementById('coPhone').value.trim();commit('Na-save ang business info');}
-function saveDefaults(){const s=DB.settings;s.defaultRate=parseFloat(document.getElementById('sRate').value)||0;s.defaultTerm=parseInt(document.getElementById('sTerm').value)||1;s.defaultMethod=document.getElementById('sMethod').value;s.defaultFrequency=document.getElementById('sFrequency').value;s.defaultPenaltyRate=Math.max(0,parseFloat(document.getElementById('sPenalty').value)||0);commit('Na-save ang defaults');}
+async function saveCompany(){const co=DB.company;co.name=document.getElementById('coName').value.trim()||co.name;co.owner=document.getElementById('coOwner').value.trim();co.phone=document.getElementById('coPhone').value.trim();await commit('Na-save ang business info');}
+async function saveDefaults(){const s=DB.settings;s.defaultRate=parseFloat(document.getElementById('sRate').value)||0;s.defaultTerm=parseInt(document.getElementById('sTerm').value)||1;s.defaultMethod=document.getElementById('sMethod').value;s.defaultFrequency=document.getElementById('sFrequency').value;s.defaultPenaltyRate=Math.max(0,parseFloat(document.getElementById('sPenalty').value)||0);await commit('Na-save ang defaults');}
 function exportData(){const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='LendSync-backup-'+todayStr()+'.json';a.click();toast('Na-download ang backup');}
-function importData(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.loans)throw 0;DB=normalizeData(d);save();updateBadges();toast('Na-restore!');go('dashboard');}catch(e){toast('Sirang backup file','err');}};r.readAsText(f);input.value='';}
-function resetAll(){confirmDo('Sigurado ka? Mabubura LAHAT ng data. Hindi na mababawi!',()=>{const cleared=emptyData();
-  try{localStorage.setItem(KEY,JSON.stringify(cleared));const stored=JSON.parse(localStorage.getItem(KEY));
-    if(!stored||!Array.isArray(stored.borrowers)||!Array.isArray(stored.loans)||!Array.isArray(stored.payments)||stored.borrowers.length||stored.loans.length||stored.payments.length)throw new Error('Reset failed');
-    DB=stored;updateBadges();go('dashboard');toast('Na-reset. Nabura na ang lahat ng data.');
-  }catch(e){toast('Hindi na-reset ang data. Subukan muli.','err');}});}
+function importData(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=async()=>{try{const d=JSON.parse(r.result);if(!validData(d))throw 0;DB=normalizeData(d);if(await commit('Na-restore ang backup'))go('dashboard');}catch(e){toast('Sirang backup file','err');}};r.readAsText(f);input.value='';}
+async function importLocalStorageData(){if(!CENTRAL_EMPTY||!LOCAL_IMPORT_DATA){toast('Walang local data na puwedeng i-import.','err');return;}DB=cloneData(LOCAL_IMPORT_DATA);if(await commit('Na-import ang existing device data',{requireEmpty:true})){LOCAL_IMPORT_DATA=null;closeModal();go('dashboard');}}
+function offerLocalImport(){if(!CENTRAL_EMPTY||!LOCAL_IMPORT_DATA)return;openModal(`<div class="mh"><h3>Import Existing Device Data?</h3><button class="x" onclick="closeModal()">×</button></div><div class="mb"><p style="margin:0;color:var(--ink2);line-height:1.55">Empty pa ang centralized database. May existing data sa device na ito. Piliin ang import para kopyahin ito sa shared Admin database. Hindi buburahin ang local copy.</p></div><div class="mf"><button class="btn ghost" onclick="closeModal()">Keep Database Empty</button><button class="btn green" onclick="importLocalStorageData()">Import Existing Data</button></div>`);}
+function resetAll(){confirmDo('Sigurado ka? Mabubura LAHAT ng centralized data. Hindi na mababawi!',async()=>{DB=emptyData();if(await commit('Na-reset. Nabura na ang lahat ng centralized data.'))go('dashboard');});}
 
 /* ============================================================ CLOCK + INIT */
-function tick(){const n=new Date();document.getElementById('clkDate').textContent=n.toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric'});document.getElementById('clkTime').textContent=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
-  if(!DB||CURRENT==='settings'||document.getElementById('overlay').classList.contains('on')||/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))return;
-  const raw=localStorage.getItem(KEY);if(!raw||raw===JSON.stringify(DB))return;try{const latest=JSON.parse(raw);if(!latest||!latest.loans)return;DB=latest;updateBadges();document.getElementById('content').innerHTML='';VIEWS[CURRENT]();}catch(e){}
+async function refreshFromCentral(){if(POLLING||SYNCING)return;POLLING=true;try{const result=await fetchAdminData();const latest=result.data;if(SYNCING)return;CENTRAL_EMPTY=result.databaseEmpty;CENTRAL_ETAG=result.etag;if(JSON.stringify(latest)!==JSON.stringify(DB)){DB=latest;LAST_SAVED_DB=cloneData(DB);updateBadges();document.getElementById('content').innerHTML='';VIEWS[CURRENT]();}}catch(e){}finally{POLLING=false;}}
+async function tick(){const n=new Date();document.getElementById('clkDate').textContent=n.toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric'});document.getElementById('clkTime').textContent=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
+  if(!DB||CURRENT==='settings'||document.getElementById('overlay').classList.contains('on')||/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))return;await refreshFromCentral();
 }
-function startApp(){DB=load();document.getElementById('authGate').hidden=true;document.getElementById('app').hidden=false;tick();setInterval(tick,5000);updateBadges();go('dashboard');}
-async function checkAdminSession(){try{const res=await fetch('/.netlify/functions/admin-login',{credentials:'same-origin'});if(res.ok){startApp();return;}}catch(e){}document.getElementById('adminUsername').focus();}
+let TICK_TIMER=null;
+async function startApp(){const err=document.getElementById('adminLoginError');try{await load();}catch(e){err.textContent=e.message||'Unable to load centralized data.';return false;}document.getElementById('authGate').hidden=true;document.getElementById('app').hidden=false;tick();if(!TICK_TIMER)TICK_TIMER=setInterval(tick,5000);updateBadges();go('dashboard');setTimeout(offerLocalImport,0);return true;}
+async function checkAdminSession(){try{const res=await fetch('/.netlify/functions/admin-login',{credentials:'same-origin'});if(res.ok&&await startApp())return;}catch(e){}document.getElementById('adminUsername').focus();}
 document.getElementById('adminLoginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=document.getElementById('adminLoginButton');const err=document.getElementById('adminLoginError');btn.disabled=true;btn.textContent='Signing In...';err.textContent='';
   try{const res=await fetch('/.netlify/functions/admin-login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({username:document.getElementById('adminUsername').value,password:document.getElementById('adminPassword').value})});
-    if(!res.ok){err.textContent=res.status===401?'Invalid username or password.':'Admin login is unavailable.';return;}document.getElementById('adminPassword').value='';startApp();
+    if(!res.ok){err.textContent=res.status===401?'Invalid username or password.':'Admin login is unavailable.';return;}document.getElementById('adminPassword').value='';await startApp();
   }catch(e){err.textContent='Unable to reach the login service.';}finally{btn.disabled=false;btn.textContent='Sign In';}});
 checkAdminSession();
-window.addEventListener('beforeunload',()=>{if(DB)save();});
 </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import { borrowers, company, loans, payments, settings } from '../../db/schema.js'
 
@@ -164,18 +164,18 @@ export function parseLoanDataset(input: unknown): LoanDataset {
   return dataset
 }
 
-export async function readAdminDataset(): Promise<LoanDataset> {
+export async function readAdminDataset(): Promise<{ dataset: LoanDataset; databaseEmpty: boolean }> {
   const [companyRows, settingRows, borrowerRows, loanRows, paymentRows] = await Promise.all([
     db.select().from(company).where(eq(company.id, SINGLETON_ID)).limit(1),
     db.select().from(settings).where(eq(settings.id, SINGLETON_ID)).limit(1),
-    db.select().from(borrowers),
-    db.select().from(loans),
-    db.select().from(payments),
+    db.select().from(borrowers).orderBy(asc(borrowers.createdAt), asc(borrowers.id)),
+    db.select().from(loans).orderBy(asc(loans.createdAt), asc(loans.id)),
+    db.select().from(payments).orderBy(asc(payments.createdAt), asc(payments.id)),
   ])
 
   const companyRow = companyRows[0]
   const settingRow = settingRows[0]
-  return {
+  const dataset: LoanDataset = {
     company: companyRow
       ? { name: companyRow.name, owner: companyRow.owner, phone: companyRow.phone }
       : { name: 'JuanLend Financing', owner: 'Admin', phone: '0917 555 0100' },
@@ -200,6 +200,10 @@ export async function readAdminDataset(): Promise<LoanDataset> {
     borrowers: borrowerRows.map(({ id, name, phone, address, notes }) => ({ id, name, phone, address, notes })),
     loans: loanRows.map(({ createdAt, updatedAt, ...loan }) => loan),
     payments: paymentRows.map(({ createdAt, updatedAt, ...payment }) => payment),
+  }
+  return {
+    dataset,
+    databaseEmpty: !companyRow && !settingRow && !borrowerRows.length && !loanRows.length && !paymentRows.length,
   }
 }
 
